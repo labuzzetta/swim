@@ -1,0 +1,411 @@
+---
+title: "Devil's Lake - September 15, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(raster)
+library(robustbase)
+library(ggplot2)
+```
+
+## Time Series Analysis of Devils Lake Data at Minnewaukan
+
+Load the set of predictions for Minnewaukan four mile square generated using a clustered Naive Bayes classifier with training on the set of images in "devils_lake_training_image.tif" using the bands c(4,5,6). The data have been imputed with a biannual mean estimation rather than using the entire time range for estimation of the mean.
+
+```{r}
+df <- read.csv("~/GEE/data/devils_lake/devils_lake_predictions_0.3_CSSM.csv")
+df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
+```
+
+Create a simple time series of the number of pixels classified as water over time. 
+
+
+```{r}
+ggplot(df) + 
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  ylab("Water extent (1000 m^2)") +
+  xlab("Date") +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15)) +
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5, col = "red") #+
+  #stat_smooth(aes(y=pred*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="black") +
+  #stat_smooth(aes(y=jrc*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="red")
+
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))s
+plot1 <- ggplot(df) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot2 <- ggplot(df) + 
+  ggtitle("CSSM λ = 0.3") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+grid.arrange(plot1, plot2, ncol=2)
+timeseries <- arrangeGrob(plot1, plot2, ncol=2)
+#ggsave(timeseries, filename = "devils_lake_timeseries_full_data.tiff", dpi = 1200, width = 8.5, height = 5, units = "in")
+```
+
+Create a complex graphic with different colors for percent image imputed and a trend connecting only those points with < 1% of the image imputed.
+
+```{r}
+rcolors = c('#C8102E', colorRampPalette(c("pink", "blue"))(6))
+
+plot(x = (df %>% filter(cloud < 101))$dates, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Date", ylab = "Total pixels classified as water", pch = 19, col = rcolors[1], main="Total pixels classified as water after imputation")
+points(x = (df %>% filter(cloud < 100))$dates, y = (df %>% filter(cloud < 100))$pred, pch = 19, col = rcolors[2])
+points(x = (df %>% filter(cloud < 75))$dates, y = (df %>% filter(cloud < 75))$pred, pch = 19, col = rcolors[3])
+points(x = (df %>% filter(cloud < 50))$dates, y = (df %>% filter(cloud < 50))$pred, pch = 19, col = rcolors[4])
+points(x = (df %>% filter(cloud < 25))$dates, y = (df %>% filter(cloud < 25))$pred, pch = 19, col = rcolors[5])
+points(x = (df %>% filter(cloud < 10))$dates, y = (df %>% filter(cloud < 10))$pred, pch = 19, col = rcolors[6])
+points(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, pch = 19, col = rcolors[7])
+lines(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, "l")
+legend(col = rcolors, legend = c("100", "[75, 100)", "[50, 75)", "[25, 50)", "[10, 25)", "[1, 10)", "[0, 1)"), "bottomright", pch = 19, title = "Percent imputed", cex = 1, ncol=1)
+```
+
+```{r}
+rcolors <- c("#1B9E77", "#D95F02", "#7570B3", '#C8102E', "#66A61E", '#F1BE48', "#A6761D")
+
+plot(x = df$dates, y = df$pred, col = rcolors[6], pch = 19, ylim = c(0, 14000), ylab = "Number of pixels classified as water", xlab = "Date")
+points(x = (df %>% filter(dates < lubridate::ymd("2016-01-01")))$dates, y = (df %>% filter(dates < lubridate::ymd("2016-01-01")))$jrc, col = rcolors[4], pch = 19)
+legend(col = rcolors[c(6,4)], legend = c("CSSM", "JRC"), "topleft", pch = c(19,19), title = "Method")
+```
+
+```{r}
+plot(x = (df %>% filter(cloud < 101))$cloud, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Percent imputed", ylab = "Number of pixels classifies as water", pch = 19, main="Classification of water by percent imputed")
+```
+
+```{r}
+hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage of image missing")
+```
+
+## Spatial Analysis of Devils Lake at Minnewaukan
+
+Load images of four mile square at Minnewaukan
+
+```{r}
+images <- brick("~/GEE/data/devils_lake/devils_lake_prediction_images.tif")
+images <- dropLayer(images, 1)
+
+aniBrick_dl <- brick("~/GEE/data/devils_lake/devils_lake_raster_0.3_CSSM.tif")
+aniBrick_dl <- readAll(aniBrick_dl)
+```
+
+Determine which image indexes belong to 1984
+
+```{r}
+tiff(filename = "devils_lake_spatial_full_data.tiff", width = 8.5, height = 8.5, units = "in", res = 1200)
+
+yearly <- brick()
+
+par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i))$row
+    par(mar = c(0.5,0,1,0))
+    plot(sum(aniBrick_dl[[images_year]])/length(images_year), legend = F, axes = F, box = F, main = i, 
+         breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+    yearly <- addLayer(yearly, sum(aniBrick_dl[[images_year]])/length(images_year))
+}
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("bottom", ncol=6, legend=c("Always Land",NA,NA,NA,NA,"Always Water"), xpd = TRUE, horiz = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Classification Frequency", cex=1.25)
+
+dev.off()
+```
+
+```{r}
+par(mfrow = c(1,1), mar = c(1,1,1,1))
+animate(yearly, main = c(1984:2018), n = 1, pause = 1,
+        breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+        lab.breaks = c("Always\nland",NA,NA,NA,NA,NA,"Always\nwater"),
+        col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+```
+
+```{r}
+brick <- aniBrick_dl
+
+yearly <- brick()
+
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i))$row
+    yearly <- addLayer(yearly, sum(brick[[images_year]]))
+}
+
+fluctuation_water <- c()
+fluctuation_land <- c()
+c <- 0
+dates <- c()
+row <- c()
+mean_water <- c()
+image_water <- c()
+water_brick_dl <- brick()
+land_brick_dl <- brick()
+
+for(i in 1984:2018){
+  c <- c + 1
+  images_year <- (df %>% filter(year == i))$row
+  print(i)
+  mean <- sum(brick[[images_year]])/length(images_year)
+  mean <- mean >= 0.5
+  for(j in images_year){
+    
+    stat_1 <- (brick[[j]] - mean)/(yearly[[c]])
+    water <- sum(getValues(stat_1 * (stat_1 > 0)), na.rm = T)
+    
+    stat_2 <- (1 - brick[[j]] - 1 + mean)/(length(images_year)-yearly[[c]])
+    land <- sum(getValues(stat_2 * (stat_2 > 0)), na.rm = T)
+    
+    water_brick_dl <- addLayer(water_brick_dl, stat_1 * (stat_1 > 0))
+    land_brick_dl <- addLayer(land_brick_dl, stat_2 * (stat_2 > 0))
+    
+    mean_water <- c(mean_water, sum(getValues(mean), na.rm=T))
+    image_water <- c(image_water, sum(getValues((brick[[j]])), na.rm=T))
+    
+    fluctuation_water <- c(fluctuation_water, water)
+    fluctuation_land <- c(fluctuation_land, land)
+    
+    dates <- c(dates, as.character(df[df$row == j,]$dates))
+    row <- c(row, j)
+  }
+}
+
+fluctuation_water_dl <- fluctuation_water
+fluctuation_land_dl <- fluctuation_land
+mean_water_dl <- mean_water
+image_water_dl <- image_water
+row_dl <- row
+dates_dl <- dates
+
+write.csv(cbind(row_dl, fluctuation_water_dl, fluctuation_land_dl, mean_water_dl, image_water_dl, dates_dl), file = "outlier_analysis_dl.csv")
+
+```
+
+```{r}
+t <- read.csv("~/GEE/data/devils_lake/outlier_analysis_dl.csv")
+brick <- aniBrick_dl
+fluctuation_water <- t$fluctuation_water_dl
+fluctuation_land <- t$fluctuation_land_dl
+mean_water <- t$mean_water_dl
+image_water <- t$image_water_dl
+row <- t$row_dl
+dates <- t$dates_dl
+
+ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_water_dl, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_dl), sd = sd(fluctuation_water_dl)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
+
+ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_land_dl, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_dl), sd = sd(fluctuation_land_dl)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
+
+######################
+resp_water <- fluctuation_water[fluctuation_water>0]
+water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
+                        poly(lubridate::yday(dates[fluctuation_water>0]),3),
+                    family = Gamma(link="log"))
+
+sum(residuals(water_mod, "deviance")^2)
+plot(water_mod$fitted.values, resp_water)
+plot(water_mod$fitted.values, residuals(water_mod, "deviance"))
+######################
+
+res <- residuals(water_mod, "deviance") #look only at positive residuals indicating very high water fluctuation
+q <- 2
+
+plot(df$pred, x = df$dates, pch = 19)
+
+pal <- colorRampPalette(c("red", "pink"))
+
+points(x = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$dates[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], y = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$pred[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_water>0][which(res > q)])))
+
+mean_high_outliers <- df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$row
+
+mean_land <- ncell(brick[[1]]) - mean_water
+
+###################
+resp_land <- fluctuation_land[fluctuation_land>0]
+land_mod <- glmrob(resp_land ~ image_water[fluctuation_land>0] +
+                       poly(lubridate::yday(dates[fluctuation_land>0]),2),
+                   family = Gamma(link="log"))
+
+sum(residuals(land_mod, "deviance")^2)
+#plot(land_mod$fitted.values, resp_land)
+#plot(land_mod$fitted.values, residuals(land_mod, "deviance"))
+###################
+
+res <- residuals(land_mod) #look only at positive residuals indicating very high land fluctuation
+q2 <- 2
+
+pal <- colorRampPalette(c("blue", "lightblue"))
+
+points(x = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$dates[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], y = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$pred[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_land>0][which(res > q2)])))
+
+
+mean_low_outliers <- df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$row
+
+mean_outliers <- c(mean_high_outliers, mean_low_outliers)
+
+which(df[,'row'] %in% mean_high_outliers)
+which(df[,'row'] %in% mean_low_outliers)
+
+
+```
+
+```{r}
+
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.25) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle(bquote('NRI '~lambda~'= 0.3')) + 
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.25) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+grid.arrange(plot1, plot2, ncol=2)
+timeseries2 <- arrangeGrob(plot1, plot2, ncol=2, widths = c(1.2,1))
+ggsave(timeseries2, filename = "devils_lake_timeseries_outliers_rm.eps", dpi = 1200, width = 7, height = 3, units = "in")
+
+```
+
+```{r}
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot2 <- ggplot(df) + 
+  ggtitle(bquote(list("CSSM", lambda==0.3))) +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot3 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle("CSSM identify outliers") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  geom_point(data = df %>% filter((row %in% mean_outliers)), aes(x = dates, y = pred*9/10), colour="red", size=0.5, shape=4) +
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot4 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle("CSSM outliers removed") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
+timeseries3 <- arrangeGrob(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
+#ggsave(timeseries3, filename = "devils_lake_timeseries_all.eps", dpi = 1200, width = 8.5, height = 8.5, units = "in")
+```
+
+```{r}
+png(filename = "devils_lake_spatial_outliers_rm.png", width = 8.5, height = 8.5, units = "in", res = 1200)
+
+yearly <- brick()
+
+par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i) %>% filter(!(row %in% mean_outliers)))$row
+    par(mar = c(0.5,0,1,0))
+    plot(sum(aniBrick_dl[[images_year]])/length(images_year), legend = F, axes = F, box = F, main = i, 
+         breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+    yearly <- addLayer(yearly, sum(brick[[images_year]])/length(images_year))
+}
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("bottom", ncol=6, legend=c("0%","20%","40%","60%","80%","100%"), xpd = TRUE, horiz = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Water Frequency", cex=1.25)
+
+dev.off()
+```
+
+```{r}
+
+png(filename = "devils_lake_imputation_figure.png", width = 5, height = 9, units = "in", res = 1200)
+
+par(mar = c(0,0,0,0), mfrow = c(3,2), oma = c(10,5,0,0))
+
+y <- 2001; m <- 5; plot(brick('~/GEE/data/devils_lake/devils_lake_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]], col = c("white", rgb(92,157,91,maxColorValue=255), "blue"), legend = F, axes = F, box = F)
+title("JRC", cex.main = 2, line = -2)
+mtext("May 2001", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F);
+title("NRI", cex.main = 2, line = -2)
+
+y <- 2012; m <- 7; plot(brick('~/GEE/data/devils_lake/devils_lake_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]], col = c("white", rgb(92,157,91,maxColorValue=255), "blue"), legend = F, axes = F, box = F)
+mtext("July 2012", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F);
+
+y <- 2015; m <- 10; plot(brick('~/GEE/data/devils_lake/devils_lake_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]], col = c("white", rgb(92,157,91,maxColorValue=255), "blue"), legend = F, axes = F, box = F)
+mtext("October 2015", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F);
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+
+legend("bottom", ncol=3, legend=c("0%","20%","40%","60%","80%","100%")[c(1,4,2,5,3,6)], xpd = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5))[c(1,4,2,5,3,6)], title="Water Frequency", cex=2)
+
+dev.off()
+```
+
+```{r}
+yearly <- brick()
+
+par(mar = c(0.5,0,1,0), mfrow = c(3,2), oma = c(5,0,0,0))
+for(i in c(1985,1991,1997,2003,2009,2015)){
+    images_year <- (df %>% filter(year == i) %>% filter(!(row %in% mean_outliers)))$row
+    par(mar = c(0.5,0,1,0))
+    plot(sum(aniBrick_dl[[images_year]])/length(images_year), legend = F, axes = F, box = F, main = i, 
+         breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+    yearly <- addLayer(yearly, sum(aniBrick_dl[[images_year]])/length(images_year))
+}
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("bottom", ncol=6, legend=c("Always Land",NA,NA,NA,NA,"Always Water"), xpd = TRUE, horiz = TRUE, inset = c(0, 
+                                                                                                                 0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Classification Frequency", cex=1.25)
+
+
+for(y in 1984:2018){for(m in 5:10){if(length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row) > 0){seasonal <- addLayer(seasonal, sum(aniBrick_dl[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row))}else{seasonal <- addLayer(seasonal, aniBrick_dl[[1]]*NA)}}}
+
+mains <- c(outer(months, paste(" ", 1984:2018, sep = ""), FUN=paste0))
+
+animate(seasonal, col = colorRampPalette(c("#8ac28c", "#0c28eb"))(20), main = mains)
+
+```
