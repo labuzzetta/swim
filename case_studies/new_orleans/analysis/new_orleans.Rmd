@@ -1,0 +1,457 @@
+---
+title: "New Orleans Analysis - September 11, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(raster)
+library(robustbase)
+library(robust)
+library(ggplot2)
+```
+
+## Time Series Analysis of New Orleans Spillway
+
+Load the set of predictions for four mile square covering the New Orleans Spillway generated using a clustered Naive Bayes classifier with training on the set of images in "pothole_training_image.tif" using the bands c(4,5,6). 
+
+```{r}
+df <- read.csv("~/GEE/data/new_orleans/new_orleans_predictions_0.3_CSSM.csv")
+df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
+```
+
+Create a simple time series of the number of pixels classified as water over time. 
+
+```{r}
+ggplot(df) + 
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  ylab("Water extent (1000 m^2)") +
+  xlab("Date") +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15)) +
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5, col = "red") #+
+  #stat_smooth(aes(y=pred*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="black") +
+  #stat_smooth(aes(y=jrc*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="red")
+
+ggplot(df) + 
+  geom_line(aes(x = doy, y = pred*9/10, col=as.factor(year)), size = 0.5) + 
+  ylab("Water extent (1000 m^2)") +
+  xlab("DOY") +
+  theme(text = element_text(size=15))
+
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot2 <- ggplot(df) + 
+  ggtitle("CSSM λ = 0.3") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+grid.arrange(plot1, plot2, ncol=2)
+timeseries <- arrangeGrob(plot1, plot2, ncol=2)
+#ggsave(timeseries, filename = "new_orleans_timeseries_full_data.tiff", dpi = 1200, width = 8.5, height = 5, units = "in")
+```
+
+Create a complex graphic with different colors for percent image imputed and a trend connecting only those points with < 1% of the image imputed.
+
+```{r}
+plot(x = (df %>% filter(cloud < 101))$dates, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Year", ylab = "Number of pixels classifies as water", pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[1], main="Classification of water over time after imputation")
+points(x = (df %>% filter(cloud < 100))$dates, y = (df %>% filter(cloud < 100))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[2])
+points(x = (df %>% filter(cloud < 75))$dates, y = (df %>% filter(cloud < 75))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[3])
+points(x = (df %>% filter(cloud < 50))$dates, y = (df %>% filter(cloud < 50))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[4])
+points(x = (df %>% filter(cloud < 25))$dates, y = (df %>% filter(cloud < 25))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[5])
+points(x = (df %>% filter(cloud < 10))$dates, y = (df %>% filter(cloud < 10))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[6])
+points(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[7])
+lines(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, "l")
+legend(col = RColorBrewer::brewer.pal(7, "Dark2"), legend = c("= 100", "< 100", "< 75", "< 50", "< 25", "< 10", "< 1"), "topleft", pch = 19, title = "Percent imputed")
+```
+
+```{r}
+plot(x = (df %>% filter(cloud < 101))$cloud, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Percent imputed", ylab = "Number of pixels classifies as water", pch = 19, main="Classification of water by percent imputed")
+```
+
+```{r}
+hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage of image missing")
+```
+
+## Spatial Analysis of New Orleans Spillway
+
+Load images of four mile square
+
+```{r}
+images <- brick("~/GEE/data/new_orleans/new_orleans_images.tif")
+images <- dropLayer(images, 1)
+```
+
+```{r}
+aniBrick_no <- brick("~/GEE/data/new_orleans/new_orleans_raster_0.3_CSSM.tif")
+aniBrick_no <- readAll(aniBrick_no)
+```
+
+Determine which image indexes belong to 1984
+
+```{r}
+tiff(filename = "new_orleans_spatial_full_data.tiff", width = 8.5, height = 8.5, units = "in", res = 1200)
+
+yearly <- brick()
+
+par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i))$row
+    par(mar = c(0.5,0,1,0))
+    plot(sum(aniBrick_no[[images_year]])/length(images_year), legend = F, axes = F, box = F, main = i, 
+         breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+    yearly <- addLayer(yearly, sum(aniBrick_no[[images_year]])/length(images_year))
+}
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("bottom", ncol=6, legend=c("Always Land",NA,NA,NA,NA,"Always Water"), xpd = TRUE, horiz = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Classification Frequency", cex=1.25)
+
+dev.off()
+```
+
+```{r}
+par(mfrow = c(1,1), mar = c(1,1,1,1))
+animate(yearly, main = c(1984:2018), n = 1, pause = 1,
+        breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+        lab.breaks = c("Always\nland",NA,NA,NA,NA,NA,"Always\nwater"),
+        col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+```
+
+Recognize anomalous images via high spatial correlation between images with similar number of pixels classified as water, look for high correlation in "extreme weather event" images, if spatial pattern is different it is likely one of those images is anomalous.
+
+```{r}
+brick <- aniBrick_no
+
+yearly <- brick()
+
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i))$row
+    yearly <- addLayer(yearly, sum(brick[[images_year]]))
+}
+
+fluctuation_water <- c()
+fluctuation_land <- c()
+c <- 0
+dates <- c()
+row <- c()
+mean_water <- c()
+image_water <- c()
+water_brick_no <- brick()
+land_brick_no <- brick()
+
+for(i in 1984:2018){
+  c <- c + 1
+  images_year <- (df %>% filter(year == i))$row
+  print(i)
+  mean <- sum(brick[[images_year]])/length(images_year)
+  mean <- mean >= 0.5
+  for(j in images_year){
+    
+    stat_1 <- (brick[[j]] - mean)/(yearly[[c]])
+    water <- sum(getValues(stat_1 * (stat_1 > 0)), na.rm = T)
+    
+    stat_2 <- (1 - brick[[j]] - 1 + mean)/(length(images_year)-yearly[[c]])
+    land <- sum(getValues(stat_2 * (stat_2 > 0)), na.rm = T)
+    
+    water_brick_no <- addLayer(water_brick_no, stat_1 / stat_1)
+    land_brick_no <- addLayer(land_brick_no, stat_2 / stat_2)
+    
+    mean_water <- c(mean_water, sum(getValues(mean), na.rm=T))
+    image_water <- c(image_water, sum(getValues((brick[[j]])), na.rm=T))
+    
+    fluctuation_water <- c(fluctuation_water, water)
+    fluctuation_land <- c(fluctuation_land, land)
+    
+    dates <- c(dates, as.character(df[df$row == j,]$dates))
+    row <- c(row, j)
+  }
+}
+
+fluctuation_water_no <- fluctuation_water
+fluctuation_land_no <- fluctuation_land
+mean_water_no <- mean_water
+image_water_no <- image_water
+row_no <- row
+dates_no <- dates
+
+#write.csv(cbind(row_no, fluctuation_water_no, fluctuation_land_no, mean_water_no, image_water_no, dates_no), file = "outlier_analysis_no.csv")
+
+```
+
+```{r}
+t <- read.csv("~/GEE/data/new_orleans/outlier_analysis_no.csv")
+brick <- aniBrick_no
+fluctuation_water <- t$fluctuation_water_no
+fluctuation_land <- t$fluctuation_land_no
+mean_water <- t$mean_water_no
+image_water <- t$image_water_no
+row <- t$row_no
+dates <- t$dates_no
+
+ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_water_no, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_no), sd = sd(fluctuation_water_no)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
+
+ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_land_no, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_no), sd = sd(fluctuation_land_no)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
+
+######################
+resp_water <- fluctuation_water[fluctuation_water>0]
+water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
+                        poly(lubridate::yday(dates[fluctuation_water>0]), 3),
+                    family = Gamma(link="log"))
+
+sum(residuals(water_mod, "deviance")^2)
+plot(water_mod$fitted.values, resp_water)
+plot(water_mod$fitted.values, residuals(water_mod, "deviance"))
+######################
+
+res <- residuals(water_mod, "deviance")
+q <- 2
+
+plot(df$pred, x = df$dates, pch = 19)
+
+pal <- colorRampPalette(c("red", "pink"))
+
+points(x = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$dates[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], y = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$pred[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_water>0][which(res > q)])))
+
+mean_high_outliers <- df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$row
+
+mean_land <- ncell(brick[[1]]) - mean_water
+
+###################
+resp_land <- fluctuation_land[fluctuation_land>0]
+land_mod <- glmrob(resp_land ~ image_water[fluctuation_land>0] +
+                       poly(lubridate::yday(dates[fluctuation_land>0]),3),
+                   family = Gamma(link="log"))
+
+sum(residuals(land_mod, "deviance")^2)
+#plot(land_mod$fitted.values, resp_land)
+#plot(land_mod$fitted.values, residuals(land_mod, "deviance"))
+###################
+
+res <- residuals(land_mod)
+q2 <- 2
+
+pal <- colorRampPalette(c("blue", "lightblue"))
+
+points(x = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$dates[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], y = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$pred[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_land>0][which(res > q2)])))
+
+
+mean_low_outliers <- df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$row
+
+mean_outliers <- c(mean_high_outliers, mean_low_outliers)
+
+which(df[,'row'] %in% mean_high_outliers)
+which(df[,'row'] %in% mean_low_outliers)
+
+#for(i in 1:(length(df$row))){plot(land_brick_no[[i]], main = df$row[i], col = rainbow(50)[35:50]);}
+
+```
+
+```{r}
+
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df) + 
+    ggtitle("JRC") +   
+    geom_point(aes(x = dates, y = jrc*9/10), size = 0.25) + 
+    scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+    ylab(bquote('Water extent (1000 '*m^2*')')) +
+    xlab(NULL) +
+    scale_x_date(limits = c(lubridate::ymd("1985-01-01"),lubridate::ymd("2014-12-31"))) +
+    theme(text = element_text(size=10)) #+
+    #theme(panel.grid.minor = element_blank())
+plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+    ggtitle(bquote('SWIM '~lambda~'= 0.3')) + 
+    geom_point(aes(x = dates, y = pred*9/10), size = 0.25) + 
+    scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+    ylab(NULL) +
+    xlab(NULL) +
+    scale_x_date(limits = c(lubridate::ymd("1985-01-01"),lubridate::ymd("2014-12-31"))) +
+    theme(text = element_text(size=10)) #+
+    #theme(panel.grid.minor = element_blank())
+grid.arrange(plot1, plot2, ncol=2)
+
+timeseries2 <- arrangeGrob(plot1, plot2, ncol=2, widths = c(1.2,1))
+ggsave(timeseries2, filename = "new_orleans_timeseries_outliers_rm.tiff", dpi = 1200, width = 16.5, height = 8, units = "cm", device = "tiff")
+
+```
+
+```{r}
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot2 <- ggplot(df) + 
+  ggtitle(bquote('CSSM, '~lambda~'= 0.3')) + 
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot3 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle("CSSM identify outliers") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  geom_point(data = df %>% filter((row %in% mean_outliers)), aes(x = dates, y = pred*9/10), colour="red", size=0.5, shape=4) +
+  scale_y_continuous(limits = c(0,max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+plot4 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle("CSSM outliers removed") +
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+  theme(text = element_text(size=15))
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
+timeseries3 <- arrangeGrob(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
+#ggsave(timeseries3, filename = "new_orleans_timeseries_all.eps", dpi = 1200, width = 8.5, height = 8.5, units = "in")
+```
+
+```{r}
+png(filename = "new_orleans_spatial_outliers_rm.png", width = 8.5, height = 8.5, units = "in", res = 1200)
+
+yearly <- brick()
+
+par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i) %>% filter(!(row %in% mean_outliers)))$row
+    par(mar = c(0.5,0,1,0))
+    plot(sum(aniBrick_no[[images_year]])/length(images_year), legend = F, axes = F, box = F, main = i, 
+         breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1),
+         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
+    yearly <- addLayer(yearly, sum(aniBrick_no[[images_year]])/length(images_year))
+}
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
+legend("bottom", ncol=6, legend=c("0%","20%","40%","60%","80%","100%"), xpd = TRUE, horiz = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Water Frequency", cex=1.25)
+
+dev.off()
+```
+
+```{r}
+
+png(filename = "new_orleans_flood_figure.png", width = 5, height = 9, units = "in", res = 1200)
+
+par(mar = c(0,0,0,0), mfrow = c(3,2), oma = c(10,5,0,0))
+
+y <- 1994; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+title("JRC", cex.main = 2, line = -2)
+mtext("1994", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+title("SWIM", cex.main = 2, line = -2)
+
+y <- 1997; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+mtext("1997", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+
+
+y <- 2011; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+mtext("2011", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 1, 0), mar = c(1, 0, 2, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n", maxpixels=1e8)
+legend("bottom", ncol=3, legend=c("0%","20%","40%","60%","80%","100%")[c(1,4,2,5,3,6)], xpd = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5))[c(1,4,2,5,3,6)], title="Water Frequency", cex=2)
+
+dev.off()
+
+```
+
+```{r}
+
+tiff(filename = "new_orleans_flood_figure.tiff", width = 8, height = 15, units = "cm", res = 1200)
+
+par(mar = c(0,0,0,0), mfrow = c(3,2), oma = c(10,5,0,0))
+
+y <- 1994; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+title("JRC", cex.main = 2, line = -2)
+mtext("1994", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+title("SWIM", cex.main = 2, line = -2)
+
+y <- 1997; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+mtext("1997", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+
+
+y <- 2011; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+mtext("2011", side = 2, cex = 1.5, line = 1)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 1, 0), mar = c(1, 0, 2, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n", maxpixels=1e8)
+legend("bottom", ncol=3, legend=c("0%","20%","40%","60%","80%","100%")[c(1,4,2,5,3,6)], xpd = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5))[c(1,4,2,5,3,6)], title="Water Frequency", cex=1.5)
+
+dev.off()
+
+```
+
+```{r}
+
+tiff(filename = "new_orleans_flood_figure.tiff", width = 8, height = 8, units = "cm", res=1200)
+
+par(mar = c(0,0,0,0), mfrow = c(1,2), oma = c(10,5,10,0))
+
+y <- 1997; plot(sum(brick('~/GEE/data/new_orleans/new_orleans_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]]>1)/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+#mtext("1997", side = 2, cex = 1, line = 1)
+title("JRC", cex.main = 2, line = -2)
+
+plot(sum(brick[[(df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1))
+title("SWIM", cex.main = 2, line = -2)
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 1, 0), mar = c(1, 0, 2, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n", maxpixels=1e8)
+legend("bottom", ncol=3, legend=c("0%","20%","40%","60%","80%","100%")[c(1,4,2,5,3,6)], xpd = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5))[c(1,4,2,5,3,6)], title="Water Frequency", cex=1)
+
+dev.off()
+
+```
+
+```{r}
+seasonal <- brick()
+
+for(y in 1984:2018){for(m in 5:10){if(length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row) > 0){seasonal <- addLayer(seasonal, sum(aniBrick_no[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]])/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row))}else{seasonal <- addLayer(seasonal, aniBrick_no[[1]]*NA)}}}
+
+mains <- c(outer(months, paste(" ", 1984:2018, sep = ""), FUN=paste0))
+
+animate(seasonal, col = colorRampPalette(c("#8ac28c", "#0c28eb"))(20), main = mains)
+
+```
