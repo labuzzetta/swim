@@ -1,0 +1,177 @@
+---
+title: "Colorado River Drought"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(raster)
+library(robustbase)
+library(ggplot2)
+```
+
+## Time Series Analysis of Colorado River Drought Data
+
+Load the set of predictions for the Colorado River four mile square generated using a clustered Naive Bayes classifier with training on the set of images in "colo_river_training_diff_wl.tif" using a combination of features including MNDWI, NDWI, MIR. 
+
+```{r}
+df <- read.csv("~/GEE/data/colo_river/colo_river_predictions_0.1_CSSM.csv")
+df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
+```
+
+## Spatial Analysis of Prairie Potholes in North Dakota
+
+Load images of four mile square
+
+```{r}
+images <- brick("~/GEE/data/colo_river/colo_images_edit_mask.tif")
+images <- dropLayer(images, 1)
+
+aniBrick_cr <- brick("~/GEE/data/colo_river/colo_river_raster_0.1_CSSM.tif")
+aniBrick_cr <- readAll(aniBrick_cr)
+```
+
+```{r}
+t <- read.csv("~/GEE/data/colo_river/outlier_analysis_cr.csv")
+brick <- aniBrick_cr
+fluctuation_water <- t$fluctuation_water_cr
+fluctuation_land <- t$fluctuation_land_cr
+mean_water <- t$mean_water_cr
+image_water <- t$image_water_cr
+row <- t$row_cr
+dates <- t$dates_cr
+
+ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_water_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_cr), sd = sd(fluctuation_water_cr)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm") + ggtitle("h_k Box-Cox Plot, Slope: 1.0022")
+summary(lm(log(sd) ~ log(mean), data = t %>% mutate(quantile = ntile(fluctuation_water_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_cr), sd = sd(fluctuation_water_cr))))
+
+#ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_land_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_cr), sd = sd(fluctuation_land_cr)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm") + ggtile("l_k Box-Cox Plot, Slope: .9655")
+#summary(lm(log(sd) ~ log(mean), data = t %>% mutate(quantile = ntile(fluctuation_land_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_cr), sd = sd(fluctuation_land_cr))))
+
+######################
+resp_water <- fluctuation_water[fluctuation_water>0]
+water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
+                        poly(lubridate::yday(dates[fluctuation_water>0]),3),
+                    family = Gamma(link="log"))
+
+sum(residuals(water_mod, "deviance")^2)
+plot(water_mod$fitted.values, resp_water)
+plot(water_mod$fitted.values, residuals(water_mod, "deviance"))
+######################
+
+res <- residuals(water_mod, "deviance") #look only at positive residuals indicating very high water fluctuation
+q <- 2
+
+plot(df$pred, x = df$dates, pch = 19)
+
+pal <- colorRampPalette(c("red", "pink"))
+
+points(x = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$dates[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], y = df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$pred[order(resp_water[which(res > q)], (row[fluctuation_water>0])[which(res > q)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_water>0][which(res > q)])))
+
+mean_high_outliers <- df[(df$row %in% row[fluctuation_water>0][which(res > q)]),]$row
+
+mean_land <- ncell(brick[[1]]) - mean_water
+
+###################
+resp_land <- fluctuation_land[fluctuation_land>0]
+land_mod <- glmrob(resp_land ~ image_water[fluctuation_land>0] +
+                       poly(lubridate::yday(dates[fluctuation_land>0]),3) + image_water[fluctuation_land>0]:
+                       poly(lubridate::yday(dates[fluctuation_land>0]),1),
+                   family = Gamma(link="log"))
+
+sum(residuals(land_mod, "deviance")^2)
+###################
+
+res <- residuals(land_mod) #look only at positive residuals indicating very high land fluctuation
+q2 <- 2
+
+pal <- colorRampPalette(c("blue", "lightblue"))
+
+points(x = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$dates[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], y = df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$pred[order(resp_land[which(res > q2)], (row[fluctuation_land>0])[which(res > q2)], decreasing = T)], pch = 19, col = pal(length(row[fluctuation_land>0][which(res > q2)])))
+
+
+mean_low_outliers <- df[(df$row %in% row[fluctuation_land>0][which(res > q2)]),]$row
+
+mean_outliers <- c(mean_high_outliers, mean_low_outliers)
+
+which(df[,'row'] %in% mean_high_outliers)
+which(df[,'row'] %in% mean_low_outliers)
+
+```
+
+```{r}
+
+require(gridExtra)
+theme_update(plot.title = element_text(hjust = 0.5))
+plot1 <- ggplot(df %>% mutate(day = 1) %>% mutate(dates = lubridate::ymd(paste(year,month,day,"-")))) + 
+  ggtitle("JRC") +   
+  geom_point(aes(x = dates, y = jrc*9/10), size = 0.25) + 
+  scale_y_continuous(limits = c(3000,6000))+#max(df$pred*9/10))) +
+  ylab(bquote('Water extent (1000 '*m^2*')')) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("2012-01-01"),lubridate::ymd("2015-12-31"))) +
+  theme(text = element_text(size=10)) +
+  theme(panel.grid.minor = element_blank())
+plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+  ggtitle(bquote('SWIM '~lambda~'= 0.1')) + 
+  geom_point(aes(x = dates, y = pred*9/10), size = 0.25) + 
+  scale_y_continuous(limits = c(3000,6000), labels = NULL) +
+  ylab(NULL) +
+  xlab(NULL) +
+  scale_x_date(limits = c(lubridate::ymd("2012-01-01"),lubridate::ymd("2015-12-31"))) +
+  theme(text = element_text(size=10)) +
+  theme(panel.grid.minor = element_blank())
+#plot3 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
+#  ggtitle('SWIM '~lambda~'= 0.1') +
+#  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
+#  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
+#  ylab(NULL) +
+#  xlab(NULL) +
+#  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
+#  theme(text = element_text(size=10)) +
+#  theme(panel.grid.minor = element_blank())
+
+
+grid.arrange(plot1, plot2, ncol=2)
+timeseries2 <- arrangeGrob(plot1, plot2, ncol=2, widths = c(1.2,1))
+ggsave(timeseries2, filename = "colo_river_timeseries_outliers_shown.tiff", dpi = 1200, width = 16.5, height = 8, units = "cm")
+
+```
+
+```{r}
+
+### Three monthly images during drought season
+
+tiff(filename = "colo_river_drought_figure.tiff", width = 8, height = 12, units = "cm", res = 1200)
+
+par(mar = c(0,0,0,0), mfrow = c(3,2), oma = c(7,3,3,0))
+
+y <- 2012; m <- 6; plot(brick('~/GEE/data/colo_river/colo_river_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]], col = c("white", rgb(92,157,91,maxColorValue=255), "blue"), legend = F, axes = F, box = F)
+mtext("JRC", side = 3, cex.main = 1, line = 0.5)
+mtext("June 2012", side = 2, cex = 0.75, line = 1)
+
+
+plot(sum(aniBrick_cr[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1));
+mtext("SWIM", side = 3, cex.main = 1, line = 0.5)
+
+y <- 2013; m <- 7; plot(brick('~/GEE/data/colo_river/colo_river_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]]>1, col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F)
+mtext("July 2013", side = 2, cex = 0.75, line = 1)
+
+plot(sum(aniBrick_cr[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1));
+
+
+y <- 2014; m <- 5; plot(brick('~/GEE/data/colo_river/colo_river_final_extras_rm_jrc.tif')[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row[1]]]>1, col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F)
+mtext("May 2014", side = 2, cex = 0.75, line = 1)
+
+plot(sum(aniBrick_cr[[(df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row]], na.rm=T)/length((df %>% filter(year == y) %>% filter(month == m) %>% filter(!row %in% mean_outliers))$row), col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), legend = F, axes = F, box = F, breaks = c(0,0.0001,0.2,0.4,0.6,0.8,1));
+
+
+par(fig = c(0, 1, 0, 1), oma = c(1, 0, 1, 0), mar = c(1, 0, 2, 0), new = TRUE)
+plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n", maxpixels=1e8)
+legend("bottom", ncol=3, legend=c("0%","20%","40%","60%","80%","100%")[c(1,4,2,5,3,6)], xpd = TRUE, inset = c(0, 
+    0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5))[c(1,4,2,5,3,6)], title="Water Frequency", cex=1)
+
+dev.off()
+
+```
