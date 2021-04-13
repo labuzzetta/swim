@@ -1,3 +1,5 @@
+//Polygon areas for the case study locations are given below
+//Any new location may also be defined similarly
 var new_orleans_pred = /* color: #d63000 */ee.Geometry.Polygon(
         [[[-90.45822552238303, 30.023402487169445],
           [-90.45822828111125, 29.99434768896399],
@@ -9,12 +11,6 @@ var new_orleans_pred = /* color: #d63000 */ee.Geometry.Polygon(
           [-99.21850528508463, 48.06086282320035],
           [-99.21850180767149, 48.089726427966866],
           [-99.26189390735397, 48.089727214109104]]]),
-    pothole_pred = /* color: #ffc82d */ee.Geometry.Polygon(
-        [[[-98.29844091956329, 46.16715643218263],
-          [-98.29844043320668, 46.13810163388089],
-          [-98.25659199187595, 46.138292147552555],
-          [-98.25658955471226, 46.1671557523632],
-          [-98.29844091956329, 46.16715643218263]]]),
     colo_river_pred = /* color: #d63000 */ee.Geometry.Polygon(
         [[[-110.45318780454625, 37.82622514894149],
           [-110.45309187010344, 37.797015477497936],
@@ -25,7 +21,7 @@ var new_orleans_pred = /* color: #d63000 */ee.Geometry.Polygon(
 /// USER SPECIFICATION REQUIRED ///
 ///////////////////////////////////
 
-//Beginning and end of range to find training image
+//Beginning and end of range to find training images
 var train_range_1 = '1984-01-01';
 var train_range_2 = '2015-12-31';
 //Split training into 120-180, 180-240, 240-300
@@ -145,7 +141,7 @@ var calculate_clouds = function(image) {
   return image.set(cloudiness).set(missingness).set(JRC_stats).set(ee.Dictionary(['area',area_pct]));
 } //end function calculate_clouds
 
-//version for prediction region!
+//version for prediction region
 var calculate_clouds_test = function(image) {
   var cloud = image.select(['pixel_qa'],['cloud']).eq(66)
                     .or(image.select(['pixel_qa'],['cloud']).eq(68))
@@ -238,7 +234,7 @@ var trim_images = function(image){
   var JRC_range_year = ee.String(train_date.get('year'));
   var JRC_range_month = ee.Algorithms.If(ee.Number(train_date.get('month')).lt(10), ee.String("0").cat(ee.String(train_date.get('month'))), ee.String(train_date.get('month')));
 
-  //Produce the rnage of dates for the month of the JRC image
+  //Produce the range of dates for the month of the JRC image
   var JRC_range_1 = JRC_range_year.cat("-").cat(JRC_range_month).cat("-").cat("01");
   var JRC_range_2 = date_range_algorithm(ee.String(JRC_range_month), JRC_range_year);
 
