@@ -76,10 +76,6 @@ convert_TIF_for_GAPFILL <- function(path, prediction, dates, out) {
   b5_rows[is.na(b5_rows)] <- NA
   b6_rows[is.na(b6_rows)] <- NA
   
-  print(nrow(year))
-  print(nrow(doy))
-  print(nrow(b1_rows))
-  
   #Add dates to images values in row
   b1_rows <- cbind(year, doy, b1_rows)
   b2_rows <- cbind(year, doy, b2_rows)
