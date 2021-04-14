@@ -12,14 +12,14 @@ library(stfit)
 library(dplyr)
 
 #Load gapfill.R script
-source("../framework/gapfill.R")
+source("../gapfill.R")
 
 #Load the landsat data
 data <- read.csv("landsat_to_gapfill_b2.csv")
 
 #The region is 109 rows x 125 columns
 #Load these values from the input imagery
-img <- brick("test/landsat_images.tif")
+img <- brick("landsat_images.tif")
 n.row <- raster::nrow(img)
 n.col <- raster::ncol(img)
 
@@ -60,7 +60,7 @@ spreg2 <- function(x, y, x.eval, minimum.num.obs = 4, basis = "fourier",
 stfit::opts_stfit$set(temporal_mean_est = spreg2)
 
 #Set path to store intermediate gapfill function data
-path = paste0(getwd(), "/imputation/")
+path = paste0(getwd(), "/b2_imputation/")
 
 #############################
 ### Level one imputation ####
