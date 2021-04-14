@@ -34,7 +34,7 @@ doy <- data$doy
 day.eval <- sort(unique(data$doy))
 
 #Parallelize if desirable
-#registerDoParallel(cores = 4)
+registerDoParallel(cores = 2) #Recommend 12 - 18 if available
 
 #Edit spline regression function in stfit package
 spreg2 <- function(x, y, x.eval, minimum.num.obs = 4, basis = "fourier", 
