@@ -67,18 +67,21 @@ path = paste0(getwd(), "/imputation/")
 #############################
 cat("level one imputation....\n")
 
-# sample every 5 pixels in row and every 4 pixels in column
-# use a 22 by 30 image to represent the whole image
-idx1 = c(t(outer(seq(2, 109, by = 5), seq(1, 125, by = 4),
+#In this case, sample every 5 pixels in row and every 4 pixels in column
+#This will create a 22 by 32 image to represent the whole image
+idx1 = c(t(outer(seq(2, n.row, by = 5), seq(1, n.col, by = 4),
                  FUN = function(ridx, cidx){
                    (ridx-1) * 125 + cidx
                  })))
 mat1 = mat[,idx1]
-# impute the sampled image
-res1 = gapfill_landsat2(year, doy, mat1, 22, 32, doyeval = day.eval,
+
+#Impute the sub-sampled image
+#Note: May need to adjust h.tcov and clipRange values
+res1 = gapfill_landsat2(year, doy, mat1, ceiling(n.row / 5), ceiling(n.row / 4), doyeval = day.eval,
                      h.tcov = 1000, clipRange = c(0, 2000), use.intermediate.result = TRUE, outlier.action = "keep",
                      intermediate.dir = paste0(path, "lvl1/"))
-# fill in the imputed pixels
+
+#Fill in the imputed pixels
 na.idx1 = is.na(mat1)
 mat[,idx1][na.idx1] = res1$imat[na.idx1]
 saveRDS(mat, paste0(path, "lvl1/", "lvl1_impute_outlier_removed.rds"))
@@ -88,13 +91,15 @@ saveRDS(mat, paste0(path, "lvl1/", "lvl1_impute_outlier_removed.rds"))
 ################################
 cat("level two imputation....\n")
 
-# separate the whole image into 3x3 subimages: 36, 36, 37 and 42, 42, 41
+#Separate the whole image into 3x3 subimages: 36, 36, 37 and 42, 42, 41
 row.grids <- c(0, 36, 72, 109)
 col.grids <- c(0, 42, 84, 125)
+
+#Parallelize imputation of subimages
 res.list = foreach(n=1:9) %dopar% {
   ii = floor((n-1)/3) + 1
   jj = (n-1) %% 3 + 1
-  ## block index
+  #Block index
   bIdx <- c(t(outer(seq(row.grids[ii]+1, row.grids[ii+1]), seq(col.grids[jj]+1, col.grids[jj+1]),
                     FUN = function(ridx, cidx){
                       (ridx-1) * 125 + cidx
@@ -106,10 +111,11 @@ res.list = foreach(n=1:9) %dopar% {
 }
 saveRDS(res.list, file = paste0(path, "res.list.rds"))
 
+#Recombine imputed images
 for(n in 1:9){
   ii = floor((n-1)/3) + 1
   jj = (n-1) %% 3 + 1
-  ## block index
+  #Block index
   bIdx <- c(t(outer(seq(row.grids[ii]+1, row.grids[ii+1]), seq(col.grids[jj]+1, col.grids[jj+1]),
                     FUN = function(ridx, cidx){
                       (ridx-1) * 125 + cidx
@@ -117,4 +123,7 @@ for(n in 1:9){
   mat[, bIdx] <- res.list[[n]]
 }
 
+#Save final imputed output
+#Use this output for this Band in next step: train_and_predict_RF
+#Need to impute at least b2, b4, and b5 files
 saveRDS(mat, file = paste0(path, "mat_imputed_b2_new.rds"))
