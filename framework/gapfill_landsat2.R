@@ -33,8 +33,8 @@ gapfill_landsat2 <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365
       # subset data
       sub.idx <- which(year %in% yrs)
       # mean function estimation
-      msk <- getMask(mat[sub.idx, ])
-      meanest[[g]] = meanEst(doy[sub.idx], mat[sub.idx, ], doyeval = sort(unique(doy[sub.idx])),
+      msk <- stfit:::getMask(mat[sub.idx, ])
+      meanest[[g]] = stfit::meanEst(doy[sub.idx], mat[sub.idx, ], doyeval = sort(unique(doy[sub.idx])),
                              clipRange = clipRange, msk = msk, clipMethod = clipMethod, outlier.tol = outlier.tol, 
                              img.nrow = img.nrow, img.ncol = img.ncol)
     }
@@ -71,7 +71,7 @@ gapfill_landsat2 <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365
   if(use.intermediate.result & file.exists(paste0(intermediate.dir, "teffarray.rds"))){
     teffarray = readRDS(paste0(intermediate.dir, "teffarray.rds"))
   } else {
-    teffarray = teffEst(year, doy, rmat, doyeval = doyeval, h.cov = h.tcov, h.sigma2 = h.tsigma2, t.grid.num = t.grid.num)
+    teffarray = stfit:::teffEst(year, doy, rmat, doyeval = doyeval, h.cov = h.tcov, h.sigma2 = h.tsigma2, t.grid.num = t.grid.num)
     if(intermediate.save)
       saveRDS(teffarray, paste0(intermediate.dir, "teffarray.rds"))
   }
@@ -81,11 +81,11 @@ gapfill_landsat2 <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365
   ######################################
   ## calculate residuals after removing temporal effect
   yearidx = unlist(lapply(year, function(x, y)
-    which(y == x), y = as.numeric(dimnames(teffarray)[[1]])))
+    which(y == x), y = as.numeric(dimnames(teffarray$teff_array)[[1]])))
   doyidx = unlist(lapply(doy, function(x, y)
-    which(y == x), y = as.numeric(dimnames(teffarray)[[2]])))
+    which(y == x), y = as.numeric(dimnames(teffarray$teff_array)[[2]])))
   for (i in 1:nrow(rmat)) {
-    rmat[i, ] = rmat[i, ] - teffarray[yearidx[i], doyidx[i], ]
+    rmat[i, ] = rmat[i, ] - teffarray$teff_array[yearidx[i], doyidx[i], ]
   }
   
   ## estimate the spatial effect using residuals
@@ -94,31 +94,7 @@ gapfill_landsat2 <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365
     seffmat = readRDS(paste0(intermediate.dir, "seffmat.rds"))
   } else {
     if(is.null(doy.break)){
-      seffmat = seffEst(rmat, img.nrow, img.ncol, nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2, keep.original = TRUE)$seffmat
-    } else {
-      seffmat = matrix(0, nrow(rmat), ncol(rmat))
-      if(b2e.con){
-        tmpidx = (doy <= doy.break[1]) | (doy > doy.break[length(doy.break)])
-        seffmat[tmpidx,] = seffEst(rmat[tmpidx,], img.nrow, img.ncol, 
-                                   nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2)$seffmat
-        for(i in 2:length(doy.break)){
-          tmpidx = (doy <= doy.break[i]) & (doy > doy.break[i-1])
-          seffmat[tmpidx,] = seffEst(rmat[tmpidx,], img.nrow, img.ncol, 
-                                     nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2)$seffmat
-        }
-      } else {
-        seffmat[doy <= doy.break[1],] = seffEst(rmat[doy <= doy.break[1],], img.nrow, img.ncol, 
-                                                nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2)$seffmat
-        for(i in 2:length(doy.break)){
-          tmpidx = (doy <= doy.break[i]) & (doy > doy.break[i-1])
-          seffmat[tmpidx,] = seffEst(rmat[tmpidx,], img.nrow, img.ncol, 
-                                     nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2)$seffmat
-        }
-        if(doy.break[i] < max(doy)){
-          seffmat[doy > doy.break[i],] = seffEst(rmat[doy > doy.break[i],], img.nrow, img.ncol, 
-                                                 nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2)$seffmat
-        }
-      }
+      seffmat = seffEst(rmat, img.nrow, img.ncol, nnr = nnr, h.cov = h.scov, h.sigma2 = h.ssigma2 )$seff_mat
     }
     if(intermediate.save)
       saveRDS(seffmat, paste0(intermediate.dir, "seffmat.rds"))
@@ -144,7 +120,7 @@ gapfill_landsat2 <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365
   
   # add temporal effect estimation
   for(i in 1:nrow(mat_imputed)){
-      mat_imputed[i,] = mat_imputed[i,] + teffarray[yearidx[i], doyidx[i],]
+      mat_imputed[i,] = mat_imputed[i,] + teffarray$teff_array[yearidx[i], doyidx[i],]
   }
   
   # add spatial effect estimation
