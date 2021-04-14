@@ -55,20 +55,23 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
   #### 2. Time effect estimation ####
   ###################################
   
+  #Matrix to hold temporary data
   rmat <- matrix(NA, ncol = ncol(mat), nrow = nrow(mat)) 
+  
+  #For each 2-year segment
   for (g in 1:num.segs) {
     yrs <- yeareval[(2*g-1):(2*g)]
     if(length(yeareval) == (2*g+1)) {
       yrs <- yeareval[(2*g-1):(2*g+1)]
     }
+    #Remove outlier pixels
     sub.idx <- which(year %in% yrs)
-    # remove outlier pixels
     meanestg <- meanest[[g]]
     for (i in 1:length(meanestg$outlier$outidx)) {
       gidx <- sub.idx[meanestg$outlier$outidx[i]]
       mat[gidx, meanest$outlier$outlst[[i]]] <- NA 
     }
-    # remove outlier images
+    #Remove outlier images
     outlier.img.idx = sub.idx[meanestg$idx$idx.outlier]
     for(i in outlier.img.idx){
       mat[outlier.img.idx,] = NA
@@ -76,8 +79,8 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
     rmat[sub.idx, ] = mat[sub.idx, ] - meanestg$meanmat[unlist(lapply(doy[sub.idx], function(x,y) which(y == x), y = meanestg$doyeval)), ]
   }
   
-  ## estimate the temporal effect using residuals
-  ## result is a 3d array with the first dimension year, second dimension doy and third dimension pixel index
+  #Estimate the temporal effect using residuals
+  #Result is a 3d array with the first dimension year, second dimension doy and third dimension pixel index
   if(use.intermediate.result & file.exists(paste0(intermediate.dir, "teffarray.rds"))){
     teffarray = readRDS(paste0(intermediate.dir, "teffarray.rds"))
   } else {
@@ -89,7 +92,8 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
   ######################################
   #### 3. Spatial effect estimation ####
   ######################################
-  ## calculate residuals after removing temporal effect
+  
+  #Calculate residuals after removing temporal effect
   yearidx = unlist(lapply(year, function(x, y)
     which(y == x), y = as.numeric(dimnames(teffarray$teff_array)[[1]])))
   doyidx = unlist(lapply(doy, function(x, y)
@@ -98,8 +102,8 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
     rmat[i, ] = rmat[i, ] - teffarray$teff_array[yearidx[i], doyidx[i], ]
   }
   
-  ## estimate the spatial effect using residuals
-  ## result is a 3d array with the first dimension year, second dimension doy and third dimension pixel index
+  #Estimate the spatial effect using residuals
+  #Result is a 3d array with the first dimension year, second dimension doy and third dimension pixel index
   if(use.intermediate.result & file.exists(paste0(intermediate.dir, "seffmat.rds"))){
     seffmat = readRDS(paste0(intermediate.dir, "seffmat.rds"))
   } else {
@@ -110,13 +114,13 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
       saveRDS(seffmat, paste0(intermediate.dir, "seffmat.rds"))
   }
   
-  
   #######################
   #### 4. Gapfilling ####
   #######################
-  ## partially missing images: mean + time effect + spatial effect 
-  ## all missing images: mean + time effect
-  ## first calculate the theoretically imputed mat.
+  
+  #Partially missing images: mean + time effect + spatial effect 
+  #All missing images: mean + time effect
+  #First calculate the theoretically imputed mat
   mat_imputed <- matrix(0, ncol = ncol(mat), nrow = nrow(mat))
   for (g in 1:num.segs) {
     yrs <- yeareval[(2*g-1):(2*g)]
@@ -128,20 +132,21 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
     mat_imputed[sub.idx, ] <- meanestg$meanmat[unlist(lapply(doy[sub.idx], function(x, y) which(y == x), y = meanestg$doyeval)), ]
   }
   
-  # add temporal effect estimation
+  #Add temporal effect estimation
   for(i in 1:nrow(mat_imputed)){
       mat_imputed[i,] = mat_imputed[i,] + teffarray$teff_array[yearidx[i], doyidx[i],]
   }
   
-  # add spatial effect estimation
+  #Add spatial effect estimation
   pct_missing = apply(seffmat, 1, function(x) {length(which(x==0))/length(x)})
   all.miss.idx <- which(pct_missing == 1)
+  
   for (i in 1:length(all.miss.idx)) {
     year.miss <- year[all.miss.idx[i]]
     doys <- doy[year == year.miss & pct_missing < 0.5]
     seffmat.temp <- seffmat[year == year.miss & pct_missing < 0.5, ]
     doy.miss <- doy[all.miss.idx[i]]
-    # select the nearest two images
+    #Select the nearest two images
     #nbr1 <- which.min(doy.miss - doys[doys < doy.miss])
     if (all(doy.miss <= doys) | all(doy.miss >= doys)) {
       doy1 <- which.min(abs(doy.miss - doys))
@@ -151,20 +156,21 @@ gapfill <- function(year, doy, mat, img.nrow, img.ncol, doyeval = 1:365,  h.tcov
       doy2 <- doys[doys > doy.miss][which.min(doys[doys > doy.miss] - doy.miss)]
       seffmat1 <- colMeans(seffmat[doy==doy1 & year==year.miss, , drop = FALSE])
       seffmat2 <- colMeans(seffmat[doy==doy2 & year==year.miss, , drop = FALSE])
-      # weighted average of the nearest two images
+      #Weighted average of the nearest two images
       seffmat[all.miss.idx[i], ] <- ((doy.miss-doy1)/(doy2-doy1))*seffmat2 + ((doy2-doy.miss)/(doy2-doy1))*seffmat1
     }
   }
+  
   mat_imputed = mat_imputed + seffmat
 
-  #### final imputation
+  #Final imputation
   outlier.action = match.arg(outlier.action)
   if(outlier.action == "keep") {
-    ## if keep originally observed values
+    #If keep originally observed values
     imat[is.na(imat)] = mat_imputed[is.na(imat)] 
     imat[imat < 0] <- 0 # truncate results at 0
     } else if (outlier.action == "remove") {
-        ## if remove outliers
+      #If remove outliers
       imat = mat
       imat[is.na(imat)] = mat_imputed[is.na(imat)]
     }
