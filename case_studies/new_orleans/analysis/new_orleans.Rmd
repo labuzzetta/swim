@@ -87,11 +87,9 @@ aniBrick_no <- brick("../classification/new_orleans_raster_lambda0.3.tif")
 aniBrick_no <- readAll(aniBrick_no)
 ```
 
-Determine which image indexes belong to 1984
+Plot classified data for all years
 
 ```{r}
-tiff(filename = "new_orleans_spatial_full_data.tiff", width = 8.5, height = 8.5, units = "in", res = 1200)
-
 yearly <- brick()
 
 par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
@@ -108,9 +106,9 @@ par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
 plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
 legend("bottom", ncol=6, legend=c("Always Land",NA,NA,NA,NA,"Always Water"), xpd = TRUE, horiz = TRUE, inset = c(0, 
     0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Classification Frequency", cex=1.25)
-
-dev.off()
 ```
+
+Produce animation
 
 ```{r}
 par(mfrow = c(1,1), mar = c(1,1,1,1))
@@ -177,12 +175,12 @@ image_water_no <- image_water
 row_no <- row
 dates_no <- dates
 
-#write.csv(cbind(row_no, fluctuation_water_no, fluctuation_land_no, mean_water_no, image_water_no, dates_no), file = "outlier_analysis_no.csv")
+write.csv(cbind(row_no, fluctuation_water_no, fluctuation_land_no, mean_water_no, image_water_no, dates_no), file = "outlier_analysis_no.csv")
 
 ```
 
 ```{r}
-t <- read.csv("~/GEE/data/new_orleans/outlier_analysis_no.csv")
+t <- read.csv("outlier_analysis_no.csv")
 brick <- aniBrick_no
 fluctuation_water <- t$fluctuation_water_no
 fluctuation_land <- t$fluctuation_land_no
@@ -191,10 +189,6 @@ image_water <- t$image_water_no
 row <- t$row_no
 dates <- t$dates_no
 
-ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_water_no, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_no), sd = sd(fluctuation_water_no)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
-
-ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_land_no, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_no), sd = sd(fluctuation_land_no)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm")
-
 ######################
 resp_water <- fluctuation_water[fluctuation_water>0]
 water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
@@ -202,8 +196,6 @@ water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
                     family = Gamma(link="log"))
 
 sum(residuals(water_mod, "deviance")^2)
-plot(water_mod$fitted.values, resp_water)
-plot(water_mod$fitted.values, residuals(water_mod, "deviance"))
 ######################
 
 res <- residuals(water_mod, "deviance")
@@ -226,8 +218,6 @@ land_mod <- glmrob(resp_land ~ image_water[fluctuation_land>0] +
                    family = Gamma(link="log"))
 
 sum(residuals(land_mod, "deviance")^2)
-#plot(land_mod$fitted.values, resp_land)
-#plot(land_mod$fitted.values, residuals(land_mod, "deviance"))
 ###################
 
 res <- residuals(land_mod)
@@ -244,13 +234,9 @@ mean_outliers <- c(mean_high_outliers, mean_low_outliers)
 
 which(df[,'row'] %in% mean_high_outliers)
 which(df[,'row'] %in% mean_low_outliers)
-
-#for(i in 1:(length(df$row))){plot(land_brick_no[[i]], main = df$row[i], col = rainbow(50)[35:50]);}
-
 ```
 
 ```{r}
-
 require(gridExtra)
 theme_update(plot.title = element_text(hjust = 0.5))
 plot1 <- ggplot(df) + 
@@ -260,8 +246,7 @@ plot1 <- ggplot(df) +
     ylab(bquote('Water extent (1000 '*m^2*')')) +
     xlab(NULL) +
     scale_x_date(limits = c(lubridate::ymd("1985-01-01"),lubridate::ymd("2014-12-31"))) +
-    theme(text = element_text(size=10)) #+
-    #theme(panel.grid.minor = element_blank())
+    theme(text = element_text(size=10))
 plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
     ggtitle(bquote('SWIM '~lambda~'= 0.3')) + 
     geom_point(aes(x = dates, y = pred*9/10), size = 0.25) + 
@@ -269,13 +254,10 @@ plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) +
     ylab(NULL) +
     xlab(NULL) +
     scale_x_date(limits = c(lubridate::ymd("1985-01-01"),lubridate::ymd("2014-12-31"))) +
-    theme(text = element_text(size=10)) #+
-    #theme(panel.grid.minor = element_blank())
+    theme(text = element_text(size=10))
 grid.arrange(plot1, plot2, ncol=2)
 
 timeseries2 <- arrangeGrob(plot1, plot2, ncol=2, widths = c(1.2,1))
-ggsave(timeseries2, filename = "new_orleans_timeseries_outliers_rm.tiff", dpi = 1200, width = 16.5, height = 8, units = "cm", device = "tiff")
-
 ```
 
 ```{r}
@@ -316,7 +298,6 @@ plot4 <- ggplot(df %>% filter(!(row %in% mean_outliers))) +
   theme(text = element_text(size=15))
 grid.arrange(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
 timeseries3 <- arrangeGrob(plot1, plot2, plot3, plot4, ncol=2, widths = c(1.2,1))
-#ggsave(timeseries3, filename = "new_orleans_timeseries_all.eps", dpi = 1200, width = 8.5, height = 8.5, units = "in")
 ```
 
 ```{r}
