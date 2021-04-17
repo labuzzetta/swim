@@ -15,15 +15,14 @@ library(ggplot2)
 
 ## Time Series Analysis of Devils Lake Data at Minnewaukan
 
-Load the set of predictions for Minnewaukan four mile square generated using a clustered Naive Bayes classifier with training on the set of images in "devils_lake_training_image.tif" using the bands c(4,5,6). The data have been imputed with a biannual mean estimation rather than using the entire time range for estimation of the mean.
+Load the set of predictions for Minnewaukan four mile square generated using a Random Forest classifier with training on the set of images in "devils_lake_training_image.tif". The data have been imputed with a biannual mean estimation rather than using the entire time range for estimation of the mean.
 
 ```{r}
-df <- read.csv("~/GEE/data/devils_lake/devils_lake_predictions_0.3_CSSM.csv")
+df <- read.csv("devils_lake_predictions_lambda0.3.csv")
 df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
 ```
 
 Create a simple time series of the number of pixels classified as water over time. 
-
 
 ```{r}
 ggplot(df) + 
@@ -31,13 +30,14 @@ ggplot(df) +
   ylab("Water extent (1000 m^2)") +
   xlab("Date") +
   scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
-  theme(text = element_text(size=15)) +
-  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5, col = "red") #+
-  #stat_smooth(aes(y=pred*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="black") +
-  #stat_smooth(aes(y=jrc*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="red")
+  theme(text = element_text(size=15))
+```
 
+Compare timeseries from JRC and SWIM methods
+
+```{r}
 require(gridExtra)
-theme_update(plot.title = element_text(hjust = 0.5))s
+theme_update(plot.title = element_text(hjust = 0.5))
 plot1 <- ggplot(df) + 
   ggtitle("JRC") +   
   geom_point(aes(x = dates, y = jrc*9/10), size = 0.5) + 
@@ -56,7 +56,6 @@ plot2 <- ggplot(df) +
   theme(text = element_text(size=15))
 grid.arrange(plot1, plot2, ncol=2)
 timeseries <- arrangeGrob(plot1, plot2, ncol=2)
-#ggsave(timeseries, filename = "devils_lake_timeseries_full_data.tiff", dpi = 1200, width = 8.5, height = 5, units = "in")
 ```
 
 Create a complex graphic with different colors for percent image imputed and a trend connecting only those points with < 1% of the image imputed.
@@ -76,18 +75,6 @@ legend(col = rcolors, legend = c("100", "[75, 100)", "[50, 75)", "[25, 50)", "[1
 ```
 
 ```{r}
-rcolors <- c("#1B9E77", "#D95F02", "#7570B3", '#C8102E', "#66A61E", '#F1BE48', "#A6761D")
-
-plot(x = df$dates, y = df$pred, col = rcolors[6], pch = 19, ylim = c(0, 14000), ylab = "Number of pixels classified as water", xlab = "Date")
-points(x = (df %>% filter(dates < lubridate::ymd("2016-01-01")))$dates, y = (df %>% filter(dates < lubridate::ymd("2016-01-01")))$jrc, col = rcolors[4], pch = 19)
-legend(col = rcolors[c(6,4)], legend = c("CSSM", "JRC"), "topleft", pch = c(19,19), title = "Method")
-```
-
-```{r}
-plot(x = (df %>% filter(cloud < 101))$cloud, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Percent imputed", ylab = "Number of pixels classifies as water", pch = 19, main="Classification of water by percent imputed")
-```
-
-```{r}
 hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage of image missing")
 ```
 
@@ -96,18 +83,13 @@ hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage 
 Load images of four mile square at Minnewaukan
 
 ```{r}
-images <- brick("~/GEE/data/devils_lake/devils_lake_prediction_images.tif")
-images <- dropLayer(images, 1)
-
-aniBrick_dl <- brick("~/GEE/data/devils_lake/devils_lake_raster_0.3_CSSM.tif")
+aniBrick_dl <- brick("../classification/devils_lake_raster_lambda0.3.tif")
 aniBrick_dl <- readAll(aniBrick_dl)
 ```
 
 Determine which image indexes belong to 1984
 
 ```{r}
-tiff(filename = "devils_lake_spatial_full_data.tiff", width = 8.5, height = 8.5, units = "in", res = 1200)
-
 yearly <- brick()
 
 par(mar = c(0.5,0,1,0), mfrow = c(5,7), oma = c(5,0,0,0))
@@ -124,9 +106,9 @@ par(fig = c(0, 1, 0, 1), oma = c(1, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
 plot(0, 0, type = "n", bty = "n", xaxt = "n", yaxt = "n")
 legend("bottom", ncol=6, legend=c("Always Land",NA,NA,NA,NA,"Always Water"), xpd = TRUE, horiz = TRUE, inset = c(0, 
     0), bty="n", fill=c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)), title="Classification Frequency", cex=1.25)
-
-dev.off()
 ```
+
+Animate surface water extent over all years
 
 ```{r}
 par(mfrow = c(1,1), mar = c(1,1,1,1))
@@ -135,6 +117,8 @@ animate(yearly, main = c(1984:2018), n = 1, pause = 1,
         lab.breaks = c("Always\nland",NA,NA,NA,NA,NA,"Always\nwater"),
         col = c(rgb(92,157,91,maxColorValue=255), colorRampPalette(c("lightblue", "blue"))(5)))
 ```
+
+Recognize anomalous images via high spatial correlation between images with similar number of pixels classified as water, look for high correlation in "extreme weather event" images, if spatial pattern is different it is likely one of those images is anomalous.
 
 ```{r}
 brick <- aniBrick_dl
@@ -196,7 +180,7 @@ write.csv(cbind(row_dl, fluctuation_water_dl, fluctuation_land_dl, mean_water_dl
 ```
 
 ```{r}
-t <- read.csv("~/GEE/data/devils_lake/outlier_analysis_dl.csv")
+t <- read.csv("outlier_analysis_dl.csv")
 brick <- aniBrick_dl
 fluctuation_water <- t$fluctuation_water_dl
 fluctuation_land <- t$fluctuation_land_dl
