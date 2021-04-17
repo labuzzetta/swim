@@ -15,7 +15,7 @@ library(ggplot2)
 
 ## Time Series Analysis of New Orleans Spillway
 
-Load the set of predictions for four mile square covering the New Orleans Spillway generated using a Random Forest classifier with training on the set of images in "pothole_training_image.tif" using the bands c(4,5,6). 
+Load the set of predictions for four mile square covering the New Orleans Spillway generated using a Random Forest classifier with training on the set of images 
 
 ```{r}
 df <- read.csv("new_orleans_predictions_lambda0.3.csv")
@@ -72,9 +72,7 @@ lines(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred,
 legend(col = RColorBrewer::brewer.pal(7, "Dark2"), legend = c("= 100", "< 100", "< 75", "< 50", "< 25", "< 10", "< 1"), "topleft", pch = 19, title = "Percent imputed")
 ```
 
-```{r}
-plot(x = (df %>% filter(cloud < 101))$cloud, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Percent imputed", ylab = "Number of pixels classifies as water", pch = 19, main="Classification of water by percent imputed")
-```
+Histogram of percent image imputed
 
 ```{r}
 hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage of image missing")
@@ -82,15 +80,10 @@ hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage 
 
 ## Spatial Analysis of New Orleans Spillway
 
-Load images of four mile square
+Load classified images
 
 ```{r}
-images <- brick("~/GEE/data/new_orleans/new_orleans_images.tif")
-images <- dropLayer(images, 1)
-```
-
-```{r}
-aniBrick_no <- brick("~/GEE/data/new_orleans/new_orleans_raster_0.3_CSSM.tif")
+aniBrick_no <- brick("../classification/new_orleans_raster_lambda0.3.tif")
 aniBrick_no <- readAll(aniBrick_no)
 ```
 
