@@ -1,6 +1,6 @@
 # SWIM (Surface Water IMputation) Classification Framework
 
-This repository contains code, examples, and validation data to reproduce the findings of the 2021 paper by Labuzzetta et al. (2021) "A submonthly surface water classification framework via gap-fill imputation and random forest classifiers of Landsat imagery." Most importantly, the `framework` directory contains the code necessary to download and process data for your own region of interest if you would like to use the SWIM framework for your own work.
+This repository contains code, examples, and validation data to reproduce the findings of the paper by Labuzzetta et al. (2021) "A submonthly surface water classification framework via gap-fill imputation and random forest classifiers of Landsat imagery." Most importantly, the `framework` directory contains the code necessary to download and process data for your own region of interest if you would like to use the SWIM framework for your own work.
 
 ### How to navigate this repository:
 
