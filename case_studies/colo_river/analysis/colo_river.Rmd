@@ -110,8 +110,6 @@ water_mod <- glmrob(resp_water ~ image_water[fluctuation_water>0] +
                     family = Gamma(link="log"))
 
 sum(residuals(water_mod, "deviance")^2)
-plot(water_mod$fitted.values, resp_water)
-plot(water_mod$fitted.values, residuals(water_mod, "deviance"))
 ######################
 
 res <- residuals(water_mod, "deviance") #look only at positive residuals indicating very high water fluctuation
@@ -176,16 +174,6 @@ plot2 <- ggplot(df %>% filter(!(row %in% mean_outliers))) +
   scale_x_date(limits = c(lubridate::ymd("2012-01-01"),lubridate::ymd("2015-12-31"))) +
   theme(text = element_text(size=10)) +
   theme(panel.grid.minor = element_blank())
-#plot3 <- ggplot(df %>% filter(!(row %in% mean_outliers))) + 
-#  ggtitle('SWIM '~lambda~'= 0.1') +
-#  geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
-#  scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
-#  ylab(NULL) +
-#  xlab(NULL) +
-#  scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
-#  theme(text = element_text(size=10)) +
-#  theme(panel.grid.minor = element_blank())
-
 
 grid.arrange(plot1, plot2, ncol=2)
 timeseries2 <- arrangeGrob(plot1, plot2, ncol=2, widths = c(1.2,1))
