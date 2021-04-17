@@ -1,4 +1,4 @@
-# SWIM: Surface Water IMputation
+# SWIM (Surface Water IMputation) Classification Framework
 A submonthly surface water classification framework via gap-fill imputation and random forest classifiers of Landsat imagery
 
 1. In the `framework` directory, see the README file to learn "How to SWIM"
