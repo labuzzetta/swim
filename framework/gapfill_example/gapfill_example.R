@@ -77,7 +77,7 @@ mat1 = mat[,idx1]
 
 #Impute the sub-sampled image
 #Note: May need to adjust h.tcov and clipRange values
-res1 = gapfill_landsat2(year, doy, mat1, ceiling(n.row / 5), ceiling(n.row / 4), doyeval = day.eval,
+res1 = gapfill(year, doy, mat1, ceiling(n.row / 5), ceiling(n.col / 4), doyeval = day.eval,
                      h.tcov = 1000, clipRange = c(0, 2000), use.intermediate.result = TRUE, outlier.action = "keep",
                      intermediate.dir = paste0(path, "lvl1/"))
 
@@ -105,7 +105,7 @@ res.list = foreach(n=1:9) %dopar% {
                       (ridx-1) * 125 + cidx
                     })))
   mat2 <- mat[, bIdx]
-  gapfill_landsat2(year, doy, mat2, row.grids[ii+1]-row.grids[ii], col.grids[jj+1]-col.grids[jj], doyeval = day.eval, 
+  gapfill(year, doy, mat2, row.grids[ii+1]-row.grids[ii], col.grids[jj+1]-col.grids[jj], doyeval = day.eval, 
                   h.tcov = 200, clipRange = c(0, 2000), use.intermediate.result = TRUE, outlier.action = "keep",
                   intermediate.dir = paste0(path, "lvl2/block", n, "/"))$imat
 }
