@@ -61,15 +61,17 @@ timeseries <- arrangeGrob(plot1, plot2, ncol=2)
 Create a complex graphic with different colors for percent image imputed and a trend connecting only those points with < 1% of the image imputed.
 
 ```{r}
-plot(x = (df %>% filter(cloud < 101))$dates, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Year", ylab = "Number of pixels classifies as water", pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[1], main="Classification of water over time after imputation")
-points(x = (df %>% filter(cloud < 100))$dates, y = (df %>% filter(cloud < 100))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[2])
-points(x = (df %>% filter(cloud < 75))$dates, y = (df %>% filter(cloud < 75))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[3])
-points(x = (df %>% filter(cloud < 50))$dates, y = (df %>% filter(cloud < 50))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[4])
-points(x = (df %>% filter(cloud < 25))$dates, y = (df %>% filter(cloud < 25))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[5])
-points(x = (df %>% filter(cloud < 10))$dates, y = (df %>% filter(cloud < 10))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[6])
-points(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, pch = 19, col = RColorBrewer::brewer.pal(7, "Dark2")[7])
+rcolors = c('#C8102E', colorRampPalette(c("pink", "blue"))(6))
+
+plot(x = (df %>% filter(cloud < 101))$dates, y = (df %>% filter(cloud < 101))$pred, "p", xlab = "Date", ylab = "Total pixels classified as water", pch = 19, col = rcolors[1], main="Total pixels classified as water after imputation")
+points(x = (df %>% filter(cloud < 100))$dates, y = (df %>% filter(cloud < 100))$pred, pch = 19, col = rcolors[2])
+points(x = (df %>% filter(cloud < 75))$dates, y = (df %>% filter(cloud < 75))$pred, pch = 19, col = rcolors[3])
+points(x = (df %>% filter(cloud < 50))$dates, y = (df %>% filter(cloud < 50))$pred, pch = 19, col = rcolors[4])
+points(x = (df %>% filter(cloud < 25))$dates, y = (df %>% filter(cloud < 25))$pred, pch = 19, col = rcolors[5])
+points(x = (df %>% filter(cloud < 10))$dates, y = (df %>% filter(cloud < 10))$pred, pch = 19, col = rcolors[6])
+points(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, pch = 19, col = rcolors[7])
 lines(x = (df %>% filter(cloud < 1))$dates, y = (df %>% filter(cloud < 1))$pred, "l")
-legend(col = RColorBrewer::brewer.pal(7, "Dark2"), legend = c("= 100", "< 100", "< 75", "< 50", "< 25", "< 10", "< 1"), "topleft", pch = 19, title = "Percent imputed")
+legend(col = rcolors, legend = c("100", "[75, 100)", "[50, 75)", "[25, 50)", "[10, 25)", "[1, 10)", "[0, 1)"), "bottomright", pch = 19, title = "Percent imputed", cex = 1, ncol=1)
 ```
 
 Histogram of percent image imputed
