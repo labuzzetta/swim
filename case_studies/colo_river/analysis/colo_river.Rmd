@@ -22,7 +22,7 @@ df <- read.csv("colo_river_predictions_lambda0.1.csv")
 df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
 ```
 
-## Spatial Analysis of Prairie Potholes in North Dakota
+## Spatial Analysis
 
 Load images of four mile square
 
@@ -30,6 +30,65 @@ Load images of four mile square
 aniBrick_cr <- brick("../classification/colo_river_raster_lambda0.1.tif")
 aniBrick_cr <- readAll(aniBrick_cr)
 ```
+
+```{r}
+brick <- aniBrick_cr
+
+yearly <- brick()
+
+for(i in 1984:2018){
+    images_year <- (df %>% filter(year == i))$row
+    yearly <- addLayer(yearly, sum(brick[[images_year]]))
+}
+
+fluctuation_water <- c()
+fluctuation_land <- c()
+c <- 0
+dates <- c()
+row <- c()
+mean_water <- c()
+image_water <- c()
+water_brick_cr <- brick()
+land_brick_cr <- brick()
+
+for(i in 1984:2018){
+  c <- c + 1
+  images_year <- (df %>% filter(year == i))$row
+  print(i)
+  mean <- sum(brick[[images_year]])/length(images_year)
+  mean <- mean >= 0.5
+  for(j in images_year){
+    
+    stat_1 <- (brick[[j]] - mean)/(yearly[[c]])
+    water <- sum(getValues(stat_1 * (stat_1 > 0)), na.rm = T)
+    
+    stat_2 <- (1 - brick[[j]] - 1 + mean)/(length(images_year)-yearly[[c]])
+    land <- sum(getValues(stat_2 * (stat_2 > 0)), na.rm = T)
+    
+    water_brick_cr <- addLayer(water_brick_cr, stat_1 * (stat_1 > 0))
+    land_brick_cr <- addLayer(land_brick_cr, stat_2 * (stat_2 > 0))
+    
+    mean_water <- c(mean_water, sum(getValues(mean), na.rm=T))
+    image_water <- c(image_water, sum(getValues((brick[[j]])), na.rm=T))
+    
+    fluctuation_water <- c(fluctuation_water, water)
+    fluctuation_land <- c(fluctuation_land, land)
+    
+    dates <- c(dates, as.character(df[df$row == j,]$dates))
+    row <- c(row, j)
+  }
+}
+
+fluctuation_water_cr <- fluctuation_water
+fluctuation_land_cr <- fluctuation_land
+mean_water_cr <- mean_water
+image_water_cr <- image_water
+row_cr <- row
+dates_cr <- dates
+
+write.csv(cbind(row_cr, fluctuation_water_cr, fluctuation_land_cr, mean_water_cr, image_water_cr, dates_cr), file = "outlier_analysis_cr.csv")
+```
+
 
 ```{r}
 t <- read.csv("~/GEE/data/colo_river/outlier_analysis_cr.csv")
@@ -43,9 +102,6 @@ dates <- t$dates_cr
 
 ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_water_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_cr), sd = sd(fluctuation_water_cr)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm") + ggtitle("h_k Box-Cox Plot, Slope: 1.0022")
 summary(lm(log(sd) ~ log(mean), data = t %>% mutate(quantile = ntile(fluctuation_water_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_water_cr), sd = sd(fluctuation_water_cr))))
-
-#ggplot2::ggplot(data = t %>% mutate(quantile = ntile(fluctuation_land_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_cr), sd = sd(fluctuation_land_cr)), aes(x = log(mean), y = log(sd))) + ggplot2::geom_point() + ggplot2::geom_smooth(method = "lm") + ggtile("l_k Box-Cox Plot, Slope: .9655")
-#summary(lm(log(sd) ~ log(mean), data = t %>% mutate(quantile = ntile(fluctuation_land_cr, 10)) %>% group_by(quantile) %>% summarise(mean = mean(fluctuation_land_cr), sd = sd(fluctuation_land_cr))))
 
 ######################
 resp_water <- fluctuation_water[fluctuation_water>0]
