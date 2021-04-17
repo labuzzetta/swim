@@ -13,12 +13,12 @@ library(robust)
 library(ggplot2)
 ```
 
-## Time Series Analysis of Colorado River Drought Data
+## Time Series Analysis of Colorado River
 
-Load the set of predictions for the Colorado River four mile square generated using a clustered Naive Bayes classifier with training on the set of images in "colo_river_training_diff_wl.tif" using a combination of features including MNDWI, NDWI, MIR. 
+Load the set of predictions for the Colorado River four mile square generated using a Random Forest classifier with training on the set of images in "colo_river_training_diff_wl.tif" using a combination of features including MNDWI, NDWI, MIR. 
 
 ```{r}
-df <- read.csv("~/GEE/data/colo_river/colo_river_predictions_0.1_CSSM.csv")
+df <- read.csv("colo_river_predictions_lambda0.1.csv")
 df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
 ```
 
@@ -27,10 +27,7 @@ df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates
 Load images of four mile square
 
 ```{r}
-images <- brick("~/GEE/data/colo_river/colo_images_edit_mask.tif")
-images <- dropLayer(images, 1)
-
-aniBrick_cr <- brick("~/GEE/data/colo_river/colo_river_raster_0.1_CSSM.tif")
+aniBrick_cr <- brick("../classification/colo_river_raster_lambda0.1.tif")
 aniBrick_cr <- readAll(aniBrick_cr)
 ```
 
