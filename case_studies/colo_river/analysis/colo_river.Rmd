@@ -31,6 +31,8 @@ aniBrick_cr <- brick("../classification/colo_river_raster_lambda0.1.tif")
 aniBrick_cr <- readAll(aniBrick_cr)
 ```
 
+Recognize anomalous images via high spatial correlation between images with similar number of pixels classified as water, look for high correlation in "extreme weather event" images, if spatial pattern is different it is likely one of those images is anomalous.
+
 ```{r}
 brick <- aniBrick_cr
 
@@ -88,7 +90,6 @@ dates_cr <- dates
 
 write.csv(cbind(row_cr, fluctuation_water_cr, fluctuation_land_cr, mean_water_cr, image_water_cr, dates_cr), file = "outlier_analysis_cr.csv")
 ```
-
 
 ```{r}
 t <- read.csv("~/GEE/data/colo_river/outlier_analysis_cr.csv")
