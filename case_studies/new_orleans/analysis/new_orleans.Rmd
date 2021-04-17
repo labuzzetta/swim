@@ -15,10 +15,10 @@ library(ggplot2)
 
 ## Time Series Analysis of New Orleans Spillway
 
-Load the set of predictions for four mile square covering the New Orleans Spillway generated using a clustered Naive Bayes classifier with training on the set of images in "pothole_training_image.tif" using the bands c(4,5,6). 
+Load the set of predictions for four mile square covering the New Orleans Spillway generated using a Random Forest classifier with training on the set of images in "pothole_training_image.tif" using the bands c(4,5,6). 
 
 ```{r}
-df <- read.csv("~/GEE/data/new_orleans/new_orleans_predictions_0.3_CSSM.csv")
+df <- read.csv("new_orleans_predictions_lambda0.3.csv")
 df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates > lubridate::ymd("2015-12-31"), NA, jrc))
 ```
 
