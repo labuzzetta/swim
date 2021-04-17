@@ -30,17 +30,12 @@ ggplot(df) +
   ylab("Water extent (1000 m^2)") +
   xlab("Date") +
   scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
-  theme(text = element_text(size=15)) +
-  geom_point(aes(x = dates, y = jrc*9/10), size = 0.5, col = "red") #+
-  #stat_smooth(aes(y=pred*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="black") +
-  #stat_smooth(aes(y=jrc*9/10, x=dates), method = lm, formula = y ~ poly(x, 9), se = FALSE, col="red")
-
-ggplot(df) + 
-  geom_line(aes(x = doy, y = pred*9/10, col=as.factor(year)), size = 0.5) + 
-  ylab("Water extent (1000 m^2)") +
-  xlab("DOY") +
   theme(text = element_text(size=15))
+```
 
+Compare timeseries from JRC and SWIM methods
+
+```{r}
 require(gridExtra)
 theme_update(plot.title = element_text(hjust = 0.5))
 plot1 <- ggplot(df) + 
@@ -52,7 +47,7 @@ plot1 <- ggplot(df) +
   scale_x_date(limits = c(lubridate::ymd("1984-01-01"),lubridate::ymd("2019-12-31"))) +
   theme(text = element_text(size=15))
 plot2 <- ggplot(df) + 
-  ggtitle("CSSM λ = 0.3") +
+  ggtitle("SWIM λ = 0.3") +
   geom_point(aes(x = dates, y = pred*9/10), size = 0.5) + 
   scale_y_continuous(limits = c(0,max(df$pred*9/10)), labels=NULL) +
   ylab(NULL) +
@@ -61,7 +56,6 @@ plot2 <- ggplot(df) +
   theme(text = element_text(size=15))
 grid.arrange(plot1, plot2, ncol=2)
 timeseries <- arrangeGrob(plot1, plot2, ncol=2)
-#ggsave(timeseries, filename = "new_orleans_timeseries_full_data.tiff", dpi = 1200, width = 8.5, height = 5, units = "in")
 ```
 
 Create a complex graphic with different colors for percent image imputed and a trend connecting only those points with < 1% of the image imputed.
