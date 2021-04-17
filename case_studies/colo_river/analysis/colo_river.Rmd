@@ -1,5 +1,5 @@
 ---
-title: "Colorado River Drought"
+title: "Colorado River Analysis"
 output: pdf_document
 ---
 
@@ -9,6 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(raster)
 library(robustbase)
+library(robust)
 library(ggplot2)
 ```
 
