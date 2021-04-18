@@ -91,12 +91,12 @@ train_and_predict_RF <- function(training_file, predict_images_file, prediction_
   df <- data.frame(df) %>% mutate(dates = lubridate::ymd(dates))
   cloud <- percent_missing(missing_image)
   df <- cbind(df, cloud)
-  jrc <- brick(jrc_file)
-  jrc <- readAll(jrc)
-  print("Read All JRC File")
+  #jrc <- brick(jrc_file)
+  #jrc <- readAll(jrc)
+  #print("Read All JRC File")
   totals <- c(); 
-  for(i in 1:nlayers(jrc)){totals <- c(totals, sum(getValues(jrc[[i]] > 1),na.rm=T))}
-  df <- cbind(df, jrc = totals)
+  #for(i in 1:nlayers(jrc)){totals <- c(totals, sum(getValues(jrc[[i]] > 1),na.rm=T))}
+  #df <- cbind(df, jrc = totals)
   df <- dplyr::arrange(df, dates)
   
   #Create an R object to output from classification process
