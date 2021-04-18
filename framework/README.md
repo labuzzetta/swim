@@ -23,7 +23,7 @@
   - `case_studies/devils_lake/analysis/devils_lake_gapfill.R`
   - `case_studies/new_orleans/analysis/new_orleans.R`
 
-4. Train classifier
+4. Train classifier and classify imputed imagery
 
 - The .R function `train_and_predict_RF.R` can be used to train a Random Forest classifier according to the SWIM methodology
 - Many files and parameters are needed as input for this function. These can be obtained from collect_data.js and previous steps
