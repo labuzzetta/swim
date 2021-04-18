@@ -16,3 +16,8 @@ This repository contains code, examples, and validation data to reproduce the fi
 Code from the version 1.0 release of this repository follows the methodology presented in Labuzzetta et al. (2021). Please be sure to refer to v1.0 if your goal is to reproduce the results of our published research. Releases after v1.0 improve upon the published framework and will not neccesarily produce the same results or follow the same methodology. Version release history is detailed below.
 
 v1.0 - Methodology and results presented in Labuzzetta et al. (2021)
+
+
+### Issues
+
+Please report code bugs and any other issues in the Issues section of this repository. Issues will be fixed on a need-be basis and improvements released in future versions.
