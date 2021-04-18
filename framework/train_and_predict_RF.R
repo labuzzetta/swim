@@ -1,4 +1,4 @@
-train_and_predict_RF <- function(training_file, predict_images_file, prediction_dates_file, jrc_file,
+train_and_predict_RF <- function(training_file, predict_images_file, prediction_dates_file, jrc_file = NA,
                               missing_image, imputed_images_list = c(), lambda = 0.5, method = "cluster", plot = T) {
   
   #Empty list to add imputed datasets as read
