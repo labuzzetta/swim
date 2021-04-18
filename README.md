@@ -1,14 +1,14 @@
 # SWIM (Surface Water IMputation) Classification Framework
 
-This repository contains code, examples, and validation data to reproduce the findings of the paper by Labuzzetta et al. (2021) "A submonthly surface water classification framework via gap-fill imputation and random forest classifiers of Landsat imagery." Most importantly, the `framework` directory contains the code necessary to download and process data for your own region of interest if you would like to use the SWIM framework for your own work.
+This repository contains code, examples, and validation data to reproduce the findings of the paper by Labuzzetta et al. (2021) "A submonthly surface water classification framework via gap-fill imputation and random forest classifiers of Landsat imagery." Most importantly, the `framework` directory contains the code necessary to download and process data for your own regions of interest. Have fun using SWIM for your own studies!
 
 ### How to navigate this repository:
 
 1. In the `framework` directory, see the README file to learn "How to SWIM"
 
-2. In the `case_studies` directory, find the data and scripts for the Colorado River, Devil's Lake, and New Orleans case studies presented in Labuzetta et al. (2021). 
+2. In the `case_studies` directory, find the data and scripts for the Colorado River, Devil's Lake, and New Orleans case studies presented in Labuzetta et al. (2021)
 
-3. In the `validation` directory, find the Google Earth Engine script and validation geometries for the validation study presented in Labuzzetta et al. (2021).
+3. In the `validation` directory, find the Google Earth Engine script and validation geometries for the validation study presented in Labuzzetta et al. (2021)
 
 
 ### Version Release History:
