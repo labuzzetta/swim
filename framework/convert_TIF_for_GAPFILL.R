@@ -53,14 +53,14 @@ convert_TIF_for_GAPFILL <- function(path, prediction, dates, out) {
   values <- getValues(p)
   
   #Bind vectors for each band into matrices of band values (columns) for each image (rows)
-  for(i in 1:(nlayers(p)/7)){
+  for(i in 1:(nlayers(p)/6)){
     
-    b1_rows <- rbind(b1_rows, values[,(i-1)*7+1])
-    b2_rows <- rbind(b2_rows, values[,(i-1)*7+2])
-    b3_rows <- rbind(b3_rows, values[,(i-1)*7+3])
-    b4_rows <- rbind(b4_rows, values[,(i-1)*7+4])
-    b5_rows <- rbind(b5_rows, values[,(i-1)*7+5])
-    b6_rows <- rbind(b6_rows, values[,(i-1)*7+6])
+    b1_rows <- rbind(b1_rows, values[,(i-1)*6+1])
+    b2_rows <- rbind(b2_rows, values[,(i-1)*6+2])
+    b3_rows <- rbind(b3_rows, values[,(i-1)*6+3])
+    b4_rows <- rbind(b4_rows, values[,(i-1)*6+4])
+    b5_rows <- rbind(b5_rows, values[,(i-1)*6+5])
+    b6_rows <- rbind(b6_rows, values[,(i-1)*6+6])
     
   }
   
