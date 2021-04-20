@@ -83,7 +83,7 @@ hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage 
 Load images of four mile square at Minnewaukan
 
 ```{r}
-aniBrick_dl <- brick("../classification/devils_lake_raster_lambda0.3.tif")
+aniBrick_dl <- brick("../classification/dl_swim_classification_lambda0.3.tif")
 aniBrick_dl <- readAll(aniBrick_dl)
 ```
 
