@@ -9,12 +9,11 @@ library(stfit)
 library(dplyr)
 colthm = RdBuTheme()
 colthm$regions$col = rev(colthm$regions$col)
-source("../gapfill_landsat2.R")
+source("gapfill.R")
 
-# setwd("/Users/xinyuechang/NRI_landsat")
 # read the landsat data
 # The region is 109 rows x 125 columns
-data <- read.csv("/vol/data/zhuz/xinyuechang/LandsatImputation/Datasets/new_orleans_gapfill_b2.csv")
+data <- read.csv("no_to_gapfill_b2.csv")
 mat <- as.matrix(data[, -c(1,2)])
 mat[!is.na(mat)] <- as.numeric(mat[!is.na(mat)])
 mat[mat > 2000 | mat < 0] <- NA
@@ -46,7 +45,7 @@ spreg2 <- function(x, y, x.eval, minimum.num.obs = 4, basis = "fourier",
 }
 stfit::opts$set(temporal_mean_est = spreg2)
 
-path = "~/NewNewOrleans/Band2/"
+path = "./NewNewOrleans/Band2/"
 #############################
 ### Level one imputation ####
 #############################
@@ -59,7 +58,7 @@ idx1 = c(t(outer(seq(2, 109, by = 5), seq(1, 125, by = 4),
                  })))
 mat1 = mat[,idx1]
 # impute the sampled image
-res1 = gapfill_landsat2(year, doy, mat1, 22, 32, doyeval = day.eval,
+res1 = gapfill(year, doy, mat1, 22, 32, doyeval = day.eval,
                      h.tcov = 200, clipRange = c(0, 2000), use.intermediate.result = TRUE, outlier.action = "keep",
                      intermediate.dir = paste0(path, "lvl1/"))
 # fill in the imputed pixels
@@ -84,7 +83,7 @@ res.list = foreach(n=1:9) %dopar% {
                       (ridx-1) * 125 + cidx
                     })))
   mat2 <- mat[, bIdx]
-  gapfill_landsat2(year, doy, mat2, row.grids[ii+1]-row.grids[ii], col.grids[jj+1]-col.grids[jj], doyeval = day.eval, 
+  gapfill(year, doy, mat2, row.grids[ii+1]-row.grids[ii], col.grids[jj+1]-col.grids[jj], doyeval = day.eval, 
                   h.tcov = 200, clipRange = c(0, 2000), use.intermediate.result = TRUE, outlier.action = "keep",
                   intermediate.dir = paste0(path, "lvl2/block", n, "/"))$imat
 }
