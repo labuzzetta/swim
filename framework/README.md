@@ -22,6 +22,7 @@
   - `case_studies/colo_river/analysis/colo_river_gapfill.R`
   - `case_studies/devils_lake/analysis/devils_lake_gapfill.R`
   - `case_studies/new_orleans/analysis/new_orleans.R`
+- Additionally, see `gapfill_example.R`
 
 ### 4. Train classifier and classify imputed imagery
 
