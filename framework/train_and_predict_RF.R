@@ -1,5 +1,5 @@
-train_and_predict_RF <- function(training_file, predict_images_file, prediction_dates_file, jrc_file = NA,
-                              missing_image, imputed_images_list = c(), lambda = 0.5, method = "cluster", plot = T) {
+train_and_predict_RF <- function(training_file, predict_images_file, prediction_dates_file, jrc_file,
+                              to_gapfill_b2_csv_file, imputed_images_list = c(), lambda = 0.5, method = "cluster", plot = T) {
   
   #Empty list to add imputed datasets as read
   imputed_datasets <- list()
@@ -74,7 +74,7 @@ train_and_predict_RF <- function(training_file, predict_images_file, prediction_
   }
   
   #Calculate dates from missing_image file
-  dates <- read.csv(missing_image)[,1:2]
+  dates <- read.csv(to_gapfill_b2_csv_file)[,1:2]
   year <- dates$year
   doy <- dates$doy
   
@@ -89,14 +89,14 @@ train_and_predict_RF <- function(training_file, predict_images_file, prediction_
   df <- cbind(years, month, day, df)
   dates <- apply(df, 1, function(x){paste(x[1], x[2], x[3], sep="-")})
   df <- data.frame(df) %>% mutate(dates = lubridate::ymd(dates))
-  cloud <- percent_missing(missing_image)
+  cloud <- percent_missing(to_gapfill_b2_csv_file)
   df <- cbind(df, cloud)
-  #jrc <- brick(jrc_file)
-  #jrc <- readAll(jrc)
-  #print("Read All JRC File")
+  jrc <- brick(jrc_file)
+  jrc <- readAll(jrc)
+  print("Read All JRC File")
   totals <- c(); 
-  #for(i in 1:nlayers(jrc)){totals <- c(totals, sum(getValues(jrc[[i]] > 1),na.rm=T))}
-  #df <- cbind(df, jrc = totals)
+  for(i in 1:nlayers(jrc)){totals <- c(totals, sum(getValues(jrc[[i]] > 1),na.rm=T))}
+  df <- cbind(df, jrc = totals)
   df <- dplyr::arrange(df, dates)
   
   #Create an R object to output from classification process
