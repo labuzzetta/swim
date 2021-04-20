@@ -85,7 +85,7 @@ hist(x = df$cloud, xlab = "Percent Messing", main = "Distribution of percentage 
 Load classified images
 
 ```{r}
-aniBrick_no <- brick("../classification/new_orleans_raster_lambda0.3.tif")
+aniBrick_no <- brick("../classification/no_swim_classification_lambda0.3.tif")
 aniBrick_no <- readAll(aniBrick_no)
 ```
 
