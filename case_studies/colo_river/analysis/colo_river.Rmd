@@ -27,7 +27,7 @@ df <- df %>% mutate(dates = lubridate::ymd(dates)) %>% mutate(jrc = ifelse(dates
 Load images of four mile square
 
 ```{r}
-aniBrick_cr <- brick("../classification/colo_river_raster_lambda0.1.tif")
+aniBrick_cr <- brick("../classification/cr_swim_classification_lambda0.1.tif")
 aniBrick_cr <- readAll(aniBrick_cr)
 ```
 
