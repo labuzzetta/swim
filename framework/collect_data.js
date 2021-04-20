@@ -31,7 +31,7 @@ var train_doy_3 = 240;
 var train_doy_4 = 300;
 //Beginning and end of range to select prediction images
 var predict_range_1 = '1984-01-01';
-var predict_range_2 = '2018-08-11';
+var predict_range_2 = '2018-12-31';
 var predict_doy_1 = 0; 
 var predict_doy_2 = 365;
 
@@ -222,7 +222,7 @@ images8 = images8.map(addQualityBand)
 var images = ee.ImageCollection(images5.merge(images7));
 var image = ee.ImageCollection(images.merge(images8));
 
-var bands = ['B1', 'B2', 'B3', 'B4', 'B5', 'B7', 'water']
+var bands = ['B1', 'B2', 'B3', 'B4', 'B5', 'B7']
 
 var test_withCloudiness = ee.ImageCollection(image).map(calculate_clouds_test);
 
@@ -311,11 +311,23 @@ var accumulate = function(image, list) {
       ee.String('B3_').cat(image.get("system:index")),
       ee.String('B4_').cat(image.get("system:index")),
       ee.String('B5_').cat(image.get("system:index")),
-      ee.String('B7_').cat(image.get("system:index")),
+      ee.String('B7_').cat(image.get("system:index"))
+      ]))
+  
+  var added = previous.addBands(image)
+  return ee.List([added]);
+};
+
+var water = ['water']
+
+var add_water = function(image, list) {
+  
+  var previous = ee.Image(ee.List(list).get(0));
+      image = image.select(water,
+      ee.List([
       ee.String('water_').cat(image.get("system:index"))
     ]))
   
-  // Add the current anomaly to make a new cumulative anomaly image.
   var added = previous.addBands(image)
   return ee.List([added]);
 };
@@ -324,11 +336,15 @@ var accumulate = function(image, list) {
 // Since the return type of iterate is unknown, it needs to be cast to a List.
 var cumulative = ee.Image(ee.ImageCollection(ee.List(test_images.iterate(accumulate, first))).first()).toFloat();
           
+var jrc = ee.Image(ee.ImageCollection(ee.List(test_images.iterate(add_water, first))).first()).toFloat();
+          
 var names = ee.FeatureCollection(test_images.map(function(image){return ee.Feature(poly).set("id",image.get("system:index")).setGeometry(null)}))
             
 print(names)            
             
 Export.image.toDrive({image:cumulative, description:"landsat_images", folder:"r_data", scale:30, region:poly})
+
+Export.image.toDrive({image:jrc, description:"jrc_images", folder:"r_data", scale:30, region:poly})
 
 Export.table.toDrive({collection:names, description:"landsat_names", folder:"r_data"})
 
