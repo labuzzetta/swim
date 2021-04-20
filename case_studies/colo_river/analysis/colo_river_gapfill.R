@@ -9,12 +9,12 @@ library(stfit)
 library(dplyr)
 colthm = RdBuTheme()
 colthm$regions$col = rev(colthm$regions$col)
-source("../gapfill_landsat2.R")
+source("gapfill.R")
 
 # read the landsat data
 # The region is 109 rows by 138 columns with 15768 pixels in total.
 # 1111 images
-data <- read.csv("/vol/data/zhuz/xinyuechang/LandsatImputation/Datasets/colo_river_new_mask_b2.csv")
+data <- read.csv("cr_to_gapfill_b2.csv")
 mat <- as.matrix(data[, -c(1,2)])
 mat[!is.na(mat)] <- as.numeric(mat[!is.na(mat)])
 mat[mat > 3000 | mat < 0] <- NA
@@ -25,7 +25,7 @@ day.eval <- sort(unique(data$doy))
 registerDoParallel(cores = 18)
 stfit::opts$set(temporal_mean_est = stfit::spreg)
 
-path = "~/ColoradoRiver/Band2/"
+path = "./ColoradoRiver/Band2/"
 #############################
 ### Level one imputation ####
 #############################
@@ -38,7 +38,7 @@ idx1 = c(t(outer(seq(2, 109, by = 5), seq(1, 138, by = 5),
                  })))
 mat1 = mat[,idx1]
 # impute the sampled image
-res1 = gapfill_landsat2(year, doy, mat1, 22, 28, doyeval = day.eval, outlier.action = "keep",
+res1 = gapfill(year, doy, mat1, 22, 28, doyeval = day.eval, outlier.action = "keep",
                      h.tcov = 200, clipRange = c(0, 2400), use.intermediate.result = TRUE, 
                      intermediate.dir = paste0(path, "lvl1/"))
 # fill in the imputed pixels
@@ -62,7 +62,7 @@ res.list = foreach(n=1:9) %dopar% {
                      (ridx-1) * 138 + cidx
                    })))
     mat2 = mat[, bIdx]
-    gapfill_landsat2(year, doy, mat2, 36, 46, doyeval = day.eval, outlier.action = "keep", 
+    gapfill(year, doy, mat2, 36, 46, doyeval = day.eval, outlier.action = "keep", 
                    h.tcov = 200, clipRange = c(0, 2400), use.intermediate.result = FALSE,
                    intermediate.dir = paste0(path, "lvl2/block", n, "/"))$imat
   }else {
@@ -71,7 +71,7 @@ res.list = foreach(n=1:9) %dopar% {
                      (ridx-1) * 138 + cidx
                    })))
     mat2 = mat[,bIdx]
-    gapfill_landsat2(year, doy, mat2, 37, 46, doyeval = day.eval, outlier.action = "keep",
+    gapfill(year, doy, mat2, 37, 46, doyeval = day.eval, outlier.action = "keep",
                    h.tcov = 200, clipRange = c(0, 2400), use.intermediate.result = FALSE, 
                    intermediate.dir = paste0(path, "lvl2/block", n, "/"))$imat
   }
