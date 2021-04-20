@@ -12,7 +12,7 @@ library(stfit)
 library(dplyr)
 
 #Load gapfill.R script
-source("../gapfill.R")
+source("gapfill.R")
 
 #Load the landsat data
 data <- read.csv("landsat_to_gapfill_b2.csv")
